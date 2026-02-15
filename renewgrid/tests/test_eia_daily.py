@@ -39,5 +39,9 @@ def test_fetch_rto_daily_uses_demand_mw_avg(monkeypatch: pytest.MonkeyPatch) -> 
         )
 
     monkeypatch.setattr("renewgrid.data.eia.fetch_rto_hourly", fake_hourly)
-    daily = fetch_rto_daily("ERCOT", pd.Timestamp("2024-01-01").date(), pd.Timestamp("2024-01-01").date())
+    daily = fetch_rto_daily(
+        "ERCOT",
+        pd.Timestamp("2024-01-01").date(),
+        pd.Timestamp("2024-01-01").date(),
+    )
     assert list(daily.columns) == ["date", "demand_mw_avg", "source", "region"]
