@@ -35,3 +35,15 @@ def run_hello_pipeline(base_dir: str | Path) -> dict[str, Path]:
 def merge_energy_weather(nasa_frame: pd.DataFrame, eia_frame: pd.DataFrame) -> pd.DataFrame:
     """Outer join weather and demand signals by date."""
     return nasa_frame.merge(eia_frame, on="date", how="outer", suffixes=("_weather", "_grid"))
+
+
+def main() -> None:
+    """Run the hello pipeline from the project root."""
+    base_dir = Path(__file__).resolve().parents[3]
+    outputs = run_hello_pipeline(base_dir)
+    print(f"Wrote NASA data: {outputs['nasa']}")
+    print(f"Wrote EIA data: {outputs['eia']}")
+
+
+if __name__ == "__main__":
+    main()

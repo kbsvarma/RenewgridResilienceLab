@@ -15,6 +15,7 @@ cp .env.example .env
 - `make test`: run pytest.
 - `make lint`: run ruff, black, isort checks.
 - `make run`: launch Streamlit app.
+- `make pipeline`: run the Phase 1 hello pipeline and write parquet outputs.
 
 ## Config
 

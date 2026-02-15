@@ -1,4 +1,4 @@
-.PHONY: test lint run
+.PHONY: test lint run pipeline
 
 test:
 	uv run pytest
@@ -10,3 +10,6 @@ lint:
 
 run:
 	uv run streamlit run src/renewgrid/app/streamlit_app.py
+
+pipeline:
+	uv run python -m renewgrid.data.merge
