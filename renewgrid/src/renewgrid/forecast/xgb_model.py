@@ -1,11 +1,39 @@
-"""XGBoost model placeholder for later implementation."""
+"""XGBoost model wrapper."""
 
 from __future__ import annotations
 
 import pandas as pd
 
 
-def train_xgb(frame: pd.DataFrame) -> str:
-    """Placeholder XGBoost trainer that returns status text in Phase 1."""
-    _ = frame
-    return "xgb_not_enabled_phase1"
+def xgboost_is_available() -> bool:
+    """Return True when xgboost package is importable."""
+    try:
+        from xgboost import XGBRegressor  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
+def predict_with_xgb(
+    train_features: pd.DataFrame,
+    train_target: pd.Series,
+    predict_features: pd.DataFrame,
+) -> pd.Series:
+    """Fit XGBoost regressor and predict values for predict_features."""
+    if not xgboost_is_available():
+        raise RuntimeError("xgboost package is not installed.")
+
+    from xgboost import XGBRegressor
+
+    model = XGBRegressor(
+        n_estimators=200,
+        learning_rate=0.05,
+        max_depth=4,
+        subsample=0.9,
+        colsample_bytree=0.9,
+        random_state=42,
+        objective="reg:squarederror",
+    )
+    model.fit(train_features, train_target)
+    preds = model.predict(predict_features)
+    return pd.Series(preds, index=predict_features.index, dtype=float)
