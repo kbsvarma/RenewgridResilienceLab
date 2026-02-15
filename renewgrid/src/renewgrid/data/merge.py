@@ -20,6 +20,32 @@ from renewgrid.util.units import assert_daily_mw_avg
 LOGGER = logging.getLogger(__name__)
 
 
+def utc_daily_index(values: pd.Series) -> pd.DatetimeIndex:
+    """Build a UTC-localized daily DatetimeIndex and assert UTC boundary contract."""
+    idx = pd.DatetimeIndex(pd.to_datetime(values, errors="coerce"))
+    if idx.tz is None:
+        idx = idx.tz_localize("UTC")
+    else:
+        idx = idx.tz_convert("UTC")
+    assert str(idx.tz) == "UTC", "Daily aggregation must use UTC day boundaries."
+    return idx
+
+
+def _enforce_utc_daily(frame: pd.DataFrame, date_col: str = "date") -> pd.DataFrame:
+    """Ensure daily timestamps are interpreted on UTC day boundaries."""
+    data = frame.copy()
+    idx = utc_daily_index(data[date_col])
+    data = data.drop(columns=[date_col]).set_index(idx)
+    logging.info(
+        "Daily UTC aggregation from %s to %s",
+        data.index.min().date(),
+        data.index.max().date(),
+    )
+    data = data.reset_index().rename(columns={"index": date_col})
+    data[date_col] = pd.to_datetime(data[date_col]).dt.tz_localize(None)
+    return data
+
+
 def run_hello_pipeline(base_dir: str | Path) -> dict[str, Path]:
     """Run tiny NASA+EIA ingest and save daily parquet outputs under data/processed.
 
@@ -36,7 +62,7 @@ def run_hello_pipeline(base_dir: str | Path) -> dict[str, Path]:
 
     nasa = fetch_daily_solar(preset.latitude, preset.longitude, start, end)
     eia_hourly = fetch_rto_hourly(preset.eia_respondent, start, end)
-    eia = fetch_rto_daily("ERCOT", start, end, method="mean")
+    eia = _enforce_utc_daily(fetch_rto_daily("ERCOT", start, end, method="mean"))
 
     nasa_path = output_dir / "nasa_power_daily.parquet"
     eia_path = output_dir / "eia_rto_daily.parquet"
@@ -75,7 +101,7 @@ def build_daily_dataset(
     lon = longitude if longitude is not None else preset.longitude
 
     weather = fetch_daily_weather(lat, lon, start_date, end_date)
-    demand = fetch_rto_daily(region, start_date, end_date, method="mean")
+    demand = _enforce_utc_daily(fetch_rto_daily(region, start_date, end_date, method="mean"))
     assert_daily_mw_avg(demand)
 
     dataset = demand.merge(

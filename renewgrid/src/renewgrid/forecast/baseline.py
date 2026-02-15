@@ -7,7 +7,7 @@ import pandas as pd
 
 def persistence_forecast(frame: pd.DataFrame, target_col: str = "value") -> pd.Series:
     """Return one-step persistence forecast from prior observation."""
-    return frame[target_col].shift(1).bfill()
+    return frame[target_col].shift(1)
 
 
 def persistence_predict_from_train(
