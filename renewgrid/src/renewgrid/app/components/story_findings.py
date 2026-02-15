@@ -71,31 +71,28 @@ def generate_findings(
             )
 
     if {"Demand (MW avg)", "Temperature (T2M)"}.issubset(set(selected_series)):
-        pair = df[[demand_col, temp_col]].dropna()
-        corr: float | None
-        if len(pair) >= 10:
-            corr = float(pair[demand_col].corr(pair[temp_col]))
+        aligned = df[[demand_col, temp_col]].dropna()
+        n_overlap = len(aligned)
+        if n_overlap < 5:
+            findings.append("Not enough overlapping data to compute stable correlation.")
         else:
-            corr = None
-
-        if corr is None or pd.isna(corr):
-            findings.append(
-                "Demand-temperature relationship: correlation not available (insufficient data)."
-            )
-        elif abs(corr) < 0.30:
-            findings.append(
-                f"Demand-temperature correlation is {corr:.2f} (weak) at daily resolution; "
-                "hourly or lag effects may be stronger."
-            )
-        elif corr <= -0.30:
-            findings.append(
-                f"Demand-temperature correlation is {corr:.2f}: colder days tended to coincide "
-                "with higher demand."
-            )
-        elif corr >= 0.30:
-            findings.append(
-                f"Demand-temperature correlation is {corr:.2f}: warmer days tended to coincide "
-                "with higher demand."
-            )
+            corr = float(aligned[demand_col].corr(aligned[temp_col]))
+            if pd.isna(corr):
+                findings.append("Not enough overlapping data to compute stable correlation.")
+            elif abs(corr) < 0.30:
+                findings.append(
+                    f"Demand-temperature correlation is {corr:.2f} (weak) based on {n_overlap} "
+                    "overlapping days; hourly or lag effects may differ."
+                )
+            elif corr <= -0.30:
+                findings.append(
+                    f"Demand-temperature correlation is {corr:.2f} based on {n_overlap} "
+                    "overlapping days: colder days tended to coincide with higher demand."
+                )
+            else:
+                findings.append(
+                    f"Demand-temperature correlation is {corr:.2f} based on {n_overlap} "
+                    "overlapping days: warmer days tended to coincide with higher demand."
+                )
 
     return findings[:6]

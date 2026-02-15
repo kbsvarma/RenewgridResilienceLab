@@ -103,14 +103,26 @@ def _render_plotly_dual_axis(
     right_col, right_unit = SERIES_OPTIONS[right_label]
     left_axis_title = f"{left_label} ({left_unit})"
     right_axis_title = f"{right_label} ({right_unit})"
-    left_data = dataset[["date", left_col]].dropna()
-    right_data = dataset[["date", right_col]].dropna()
+    # Ensure one deterministic point per UTC day to avoid vertical spikes from duplicate dates.
+    left_data = (
+        dataset[["date", left_col]]
+        .dropna()
+        .assign(date=lambda d: pd.to_datetime(d["date"]))
+        .groupby("date", as_index=False)[left_col]
+        .mean()
+        .sort_values("date")
+    )
+    right_data = (
+        dataset[["date", right_col]]
+        .dropna()
+        .assign(date=lambda d: pd.to_datetime(d["date"]))
+        .groupby("date", as_index=False)[right_col]
+        .mean()
+        .sort_values("date")
+    )
     if left_data.empty or right_data.empty:
         st.warning("No data available for the selected dual-axis series in this window.")
         return
-
-    left_range = compute_axis_range(left_data[left_col], include_zero=include_zero)
-    right_range = compute_axis_range(right_data[right_col], include_zero=include_zero)
 
     fig = make_subplots(specs=[[{"secondary_y": True}]])
     fig.add_trace(
@@ -121,8 +133,7 @@ def _render_plotly_dual_axis(
             name=left_axis_title,
             line={"color": "#1565C0"},
             cliponaxis=True,
-        )
-        ,
+        ),
         secondary_y=False,
     )
     fig.add_trace(
@@ -133,36 +144,34 @@ def _render_plotly_dual_axis(
             name=right_axis_title,
             line={"color": "#EF6C00"},
             cliponaxis=True,
-        )
-        ,
+        ),
         secondary_y=True,
     )
-    fig.update_yaxes(range=list(left_range), secondary_y=False, title_text=left_axis_title)
-    fig.update_yaxes(range=list(right_range), secondary_y=True, title_text=right_axis_title)
+    y_rangemode = "tozero" if include_zero else "normal"
     fig.update_yaxes(
+        title_text=left_axis_title,
+        rangemode=y_rangemode,
         showgrid=True,
-        gridcolor="rgba(255,255,255,0.06)",
+        gridcolor="rgba(255,255,255,0.05)",
         gridwidth=1,
         zeroline=False,
-        nticks=6,
         secondary_y=False,
     )
     fig.update_yaxes(
+        title_text=right_axis_title,
+        rangemode=y_rangemode,
         showgrid=True,
-        gridcolor="rgba(255,255,255,0.06)",
+        gridcolor="rgba(255,255,255,0.05)",
         gridwidth=1,
         zeroline=False,
-        nticks=6,
         secondary_y=True,
     )
-    fig.update_xaxes(showgrid=False, title_text="Date")
+    fig.update_xaxes(showgrid=False, showline=False, mirror=False, title_text="Date")
     fig.update_traces(line=dict(width=2))
     fig.update_layout(
-        yaxis_autorange=False,
-        yaxis2_autorange=False,
         height=520,
-        margin=dict(l=70, r=70, t=40, b=70),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+        margin=dict(l=80, r=80, t=40, b=70),
+        legend=dict(orientation="h", yanchor="bottom", y=1.08, xanchor="left", x=0),
     )
     try:
         st.plotly_chart(fig, width="stretch")
