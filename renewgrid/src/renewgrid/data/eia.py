@@ -65,11 +65,7 @@ def fetch_rto_hourly(
     return frame[["date", "value", "source", "region"]]
 
 
-def aggregate_hourly_to_daily(
-    frame: pd.DataFrame,
-    value_col: str,
-    method: str = "mean",
-) -> pd.DataFrame:
+def aggregate_hourly_to_daily(frame: pd.DataFrame, method: str = "mean") -> pd.DataFrame:
     """Aggregate hourly EIA 930 values to a derived UTC daily series.
 
     This function treats incoming timestamps as UTC and groups by UTC calendar day.
@@ -79,7 +75,7 @@ def aggregate_hourly_to_daily(
         raise ValueError("method must be either 'sum' or 'mean'")
 
     if frame.empty:
-        return pd.DataFrame(columns=["date", value_col, "source", "region"])
+        return pd.DataFrame(columns=["date", "demand_mw_avg", "source", "region"])
 
     data = frame.copy()
     parsed = pd.to_datetime(data["date"], errors="coerce", utc=False)
@@ -91,8 +87,9 @@ def aggregate_hourly_to_daily(
     else:
         parsed = parsed.dt.tz_convert("UTC")
     data["date"] = parsed.dt.floor("D").dt.tz_localize(None)
-    grouped = data.groupby("date", as_index=False)[value_col]
+    grouped = data.groupby("date", as_index=False)["value"]
     daily = grouped.sum() if method == "sum" else grouped.mean()
+    daily = daily.rename(columns={"value": "demand_mw_avg"})
     daily["source"] = "eia"
     daily["region"] = data["region"].iloc[0]
     return daily
@@ -116,7 +113,5 @@ def fetch_rto_daily(
         end_date=end_date,
         api_key=api_key,
     )
-    daily = aggregate_hourly_to_daily(hourly, value_col="value", method=method)
-    return daily.rename(columns={"value": "demand_mw_avg"})[
-        ["date", "demand_mw_avg", "source", "region"]
-    ]
+    daily = aggregate_hourly_to_daily(hourly, method=method)
+    return daily[["date", "demand_mw_avg", "source", "region"]]
