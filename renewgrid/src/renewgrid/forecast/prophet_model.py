@@ -17,7 +17,10 @@ def prophet_is_available() -> bool:
 def fit_prophet(train_frame: pd.DataFrame, target_col: str) -> object:
     """Fit a Prophet model on date/target columns and return the fitted model."""
     if not prophet_is_available():
-        raise RuntimeError("prophet package is not installed.")
+        raise RuntimeError(
+            "Prophet is required for Prophet forecasting. Install with "
+            "`uv sync --extra dev` or `pip install prophet`."
+        )
 
     from prophet import Prophet
 
