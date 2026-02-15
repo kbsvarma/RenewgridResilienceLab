@@ -62,6 +62,9 @@ def _evaluate(
     feature_cols: tuple[str, ...],
     model_choice: str,
     horizon_days: int,
+    max_splits: int,
+    backtest_window_days: int,
+    refit_every: int,
 ) -> dict[str, object]:
     """Run cached Phase 1 rolling-origin evaluation."""
     models = ("persistence",) if model_choice == "persistence" else (model_choice, "persistence")
@@ -71,6 +74,9 @@ def _evaluate(
         feature_cols=list(feature_cols),
         horizons=tuple(range(1, horizon_days + 1)),
         min_train_size=max(20, min(60, len(frame) // 3)),
+        max_splits=max_splits,
+        backtest_window_days=backtest_window_days,
+        refit_every=refit_every,
         models=models,
     )
 
@@ -152,6 +158,20 @@ def _render_guided(base_dir: Path) -> None:
     rare_path = st.text_input("RARE path", value="") if use_rare else ""
     model_choice = st.selectbox("Model", ["persistence", "prophet", "xgboost"], index=0)
     horizon_days = st.slider("Horizon days", min_value=1, max_value=3, value=3)
+    if model_choice in {"prophet", "xgboost"}:
+        st.info(
+            "Bounded backtest is enabled for speed: recent-window evaluation with capped splits "
+            "and periodic refits."
+        )
+    with st.expander("Advanced evaluation controls", expanded=False):
+        max_splits = st.slider("max_splits", min_value=10, max_value=50, value=20)
+        backtest_window_days = st.slider(
+            "backtest_window_days",
+            min_value=30,
+            max_value=365,
+            value=90,
+        )
+        refit_every = st.slider("refit_every", min_value=1, max_value=14, value=7)
 
     start_date, end_date = _resolve_dates(preset, custom_start, custom_end)
     st.caption(
@@ -220,6 +240,9 @@ def _render_guided(base_dir: Path) -> None:
             feature_cols,
             config.model_choice,
             config.horizon_days,
+            max_splits=max_splits,
+            backtest_window_days=backtest_window_days,
+            refit_every=refit_every,
         )
         flags["eval_ran"] = True
         messages["eval_ran"] = "Rolling-origin evaluation complete"
@@ -242,7 +265,17 @@ def _render_guided(base_dir: Path) -> None:
         else:
             _render_answer_cards(dataset, None)
 
-        render_story_chart(dataset, key_prefix="guided_story")
+        story_sources = ["EIA Open Data", "NASA POWER"]
+        if any(c in dataset.columns for c in ["solar_cf", "wind_cf", "solar_gen_mwh", "wind_gen_mwh"]):
+            story_sources.append("RARE (optional)")
+        render_story_chart(
+            dataset,
+            key_prefix="guided_story",
+            region=config.region,
+            start_date=config.start_date,
+            end_date=config.end_date,
+            sources=story_sources,
+        )
         with st.expander("Map preview", expanded=False):
             render_monitor_map_component(
                 base_dir=base_dir,
