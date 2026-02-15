@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
 
 import numpy as np
 import pandas as pd
@@ -82,7 +82,11 @@ def rolling_origin_evaluate(
 
             if available["prophet"]:
                 pred_prophet = float(
-                    predict_with_prophet(train[["date", target_col]], target_col, pd.Series([eval_date])).iloc[0]
+                    predict_with_prophet(
+                        train[["date", target_col]],
+                        target_col,
+                        pd.Series([eval_date]),
+                    ).iloc[0]
                 )
                 records.append(
                     {
@@ -130,7 +134,9 @@ def rolling_origin_evaluate(
 
     summary = pd.DataFrame(summary_rows)
     if not summary.empty:
-        persist_mae = summary[summary["model"] == "persistence"].set_index("horizon")["mae"].to_dict()
+        persist_mae = (
+            summary[summary["model"] == "persistence"].set_index("horizon")["mae"].to_dict()
+        )
         summary["skill_vs_persistence"] = summary.apply(
             lambda row: (
                 0.0
