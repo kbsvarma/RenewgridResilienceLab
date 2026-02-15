@@ -72,16 +72,30 @@ def generate_findings(
 
     if {"Demand (MW avg)", "Temperature (T2M)"}.issubset(set(selected_series)):
         pair = df[[demand_col, temp_col]].dropna()
-        if len(pair) >= 3:
+        corr: float | None
+        if len(pair) >= 10:
             corr = float(pair[demand_col].corr(pair[temp_col]))
-            if corr <= -0.3:
-                findings.append("Colder days tended to coincide with higher demand.")
-            elif corr >= 0.3:
-                findings.append("Warmer days tended to coincide with higher demand.")
-            else:
-                findings.append("No strong demand-temperature relationship is visible in this window.")
         else:
-            findings.append("Correlation not available (insufficient data).")
+            corr = None
+
+        if corr is None or pd.isna(corr):
+            findings.append(
+                "Demand-temperature relationship: correlation not available (insufficient data)."
+            )
+        elif abs(corr) < 0.30:
+            findings.append(
+                f"Demand-temperature correlation is {corr:.2f} (weak) at daily resolution; "
+                "hourly or lag effects may be stronger."
+            )
+        elif corr <= -0.30:
+            findings.append(
+                f"Demand-temperature correlation is {corr:.2f}: colder days tended to coincide "
+                "with higher demand."
+            )
+        elif corr >= 0.30:
+            findings.append(
+                f"Demand-temperature correlation is {corr:.2f}: warmer days tended to coincide "
+                "with higher demand."
+            )
 
     return findings[:6]
-
