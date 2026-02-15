@@ -10,10 +10,16 @@ import pandas as pd
 
 from renewgrid.data.eia import fetch_rto_hourly
 from renewgrid.data import merge
+from renewgrid.util.parquet import has_parquet_engine
 
 
 def test_hello_pipeline_writes_expected_schema(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Pipeline writes parquet files with expected minimal schema."""
+    if not has_parquet_engine():
+        pytest.fail(
+            "Parquet engine missing. Run `uv sync --extra dev` OR "
+            '`pip install -e ".[dev]"`.'
+        )
 
     def fake_nasa(*args: object, **kwargs: object) -> pd.DataFrame:
         _ = (args, kwargs)
