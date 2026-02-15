@@ -1,4 +1,4 @@
-"""Simple dispatch optimizer placeholder."""
+"""Simple dispatch optimizer placeholder for later Phase 2."""
 
 from __future__ import annotations
 

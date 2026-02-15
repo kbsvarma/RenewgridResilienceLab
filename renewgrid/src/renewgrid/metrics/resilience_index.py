@@ -1,4 +1,4 @@
-"""Resilience index calculations."""
+"""Resilience index calculations placeholder for later Phase 2."""
 
 from __future__ import annotations
 
