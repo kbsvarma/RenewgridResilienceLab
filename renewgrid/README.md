@@ -108,6 +108,28 @@ Phase 1 stabilization updates:
 - Story chart rendering is Plotly-only (dual-axis, normalized, single-series) with cleaner layout and no duplicate grid artifacts.
 - Dependencies now explicitly include `plotly` and `pydeck` (map remains graceful if `pydeck` is unavailable).
 
+## Phase 2 Stress Test
+
+The **Stress Test** tab adds deterministic daily scenario simulation on top of Phase 1 datasets.
+
+Scenarios:
+- Heat Wave
+- Wind Drought
+- Demand Shock
+- Compound
+
+Stress metrics:
+- `deficit_days`
+- `total_unserved_mwh`
+- `peak_unserved_mw`
+- `max_deficit_streak_days`
+- `curtailment_mwh`
+- `unserved_reduction_pct` (battery vs no-battery baseline)
+
+Notes:
+- This is a planning insight tool at daily resolution, not an operator dispatch model.
+- Scenario transforms, proxy supply, battery simulation, and findings are deterministic/reproducible.
+
 ## Config
 
 Environment variables:
@@ -165,7 +187,7 @@ Normalization behavior:
 - This repository is a **research stress-test tool**, not an operational forecasting platform.
 - Daily series are derived from external APIs and subject to source latency/revisions.
 - Phase 1 reports are for comparative model benchmarking, not real-time dispatch operations.
-- UI scope is **Phase 1 only** (data + forecasting evaluation). Phase 2/3 optimization and resilience math are not implemented here.
+- UI scope includes Phase 1 monitoring/forecast evaluation and Phase 2 stress simulation. Phase 3 scoring/sizing remains out of scope.
 - Reproducibility scope: deterministic daily aggregation/feature logic with network-free tests; upstream API data can still change over time.
 - Data-source policy: no scraping and no paywalled sources in the core pipeline.
 
