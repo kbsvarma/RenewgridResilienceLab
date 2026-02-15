@@ -33,10 +33,26 @@ def _resolve_dates(start: str | None, end: str | None, days: int) -> tuple[date,
     return start_date, end_date
 
 
-def run_phase1(base_dir: str | Path, start_date: date, end_date: date, rare_path: str | None) -> dict[str, dict[str, Path]]:
+def _targets_for_dataset(dataset: pd.DataFrame) -> list[str]:
+    """Return forecast targets available in the assembled dataset."""
+    targets = ["demand_mw_avg"]
+    if {"solar_gen", "wind_gen"}.issubset(set(dataset.columns)):
+        targets.extend(["solar_gen", "wind_gen"])
+    elif {"solar_cf", "wind_cf"}.issubset(set(dataset.columns)):
+        targets.extend(["solar_cf", "wind_cf"])
+    return targets
+
+
+def run_phase1(
+    base_dir: str | Path,
+    start_date: date,
+    end_date: date,
+    rare_path: str | None,
+) -> dict[str, dict[str, dict[str, Path]]]:
     """Run dataset build and evaluation for CAISO and ERCOT."""
-    results: dict[str, dict[str, Path]] = {}
+    results: dict[str, dict[str, dict[str, Path]]] = {}
     reports_dir = Path(base_dir) / "reports" / "phase1"
+    non_feature_targets = {"demand_mw_avg", "solar_gen", "wind_gen", "solar_cf", "wind_cf"}
 
     for region in ("CAISO", "ERCOT"):
         dataset = build_daily_dataset(
@@ -46,28 +62,31 @@ def run_phase1(base_dir: str | Path, start_date: date, end_date: date, rare_path
             base_dir=base_dir,
             rare_path=rare_path,
         )
-        feature_frame = build_feature_frame(dataset, target_col="demand_mw_avg")
+        region_reports: dict[str, dict[str, Path]] = {}
 
-        exclude = {"date", "region", "source", "demand_mw_avg"}
-        feature_cols = [
-            col
-            for col in feature_frame.columns
-            if col not in exclude and pd.api.types.is_numeric_dtype(feature_frame[col])
-        ]
+        for target_col in _targets_for_dataset(dataset):
+            feature_frame = build_feature_frame(dataset, target_col=target_col)
+            exclude = {"date", "region", "source", *non_feature_targets}
+            feature_cols = [
+                col
+                for col in feature_frame.columns
+                if col not in exclude and pd.api.types.is_numeric_dtype(feature_frame[col])
+            ]
 
-        evaluation = rolling_origin_evaluate(
-            frame=feature_frame,
-            target_col="demand_mw_avg",
-            feature_cols=feature_cols,
-            min_train_size=max(30, min(60, max(10, len(feature_frame) // 3))),
-        )
-        report_paths = save_evaluation_report(
-            evaluation=evaluation,
-            region=region,
-            target_col="demand_mw_avg",
-            output_dir=reports_dir,
-        )
-        results[region] = report_paths
+            evaluation = rolling_origin_evaluate(
+                frame=feature_frame,
+                target_col=target_col,
+                feature_cols=feature_cols,
+                min_train_size=max(30, min(60, max(10, len(feature_frame) // 3))),
+            )
+            region_reports[target_col] = save_evaluation_report(
+                evaluation=evaluation,
+                region=region,
+                target_col=target_col,
+                output_dir=reports_dir,
+            )
+
+        results[region] = region_reports
 
     return results
 
@@ -79,9 +98,10 @@ def main() -> None:
     load_environment(base_dir / ".env")
     start_date, end_date = _resolve_dates(args.start, args.end, args.days)
     outputs = run_phase1(base_dir, start_date, end_date, args.rare_path)
-    for region, paths in outputs.items():
-        print(f"{region} report JSON: {paths['json']}")
-        print(f"{region} report Markdown: {paths['markdown']}")
+    for region, targets in outputs.items():
+        for target_col, paths in targets.items():
+            print(f"{region} {target_col} report JSON: {paths['json']}")
+            print(f"{region} {target_col} report Markdown: {paths['markdown']}")
 
 
 if __name__ == "__main__":

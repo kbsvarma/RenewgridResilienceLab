@@ -54,6 +54,7 @@ PYTHONPATH=src python -m renewgrid.scripts.phase1_run --days 180
 Outputs:
 - datasets: `data/processed/CAISO_daily_<start>_<end>.parquet` and `data/processed/ERCOT_daily_<start>_<end>.parquet`
 - reports: `reports/phase1/*_demand_mw_avg_report.json` and `.md`
+- when optional RARE columns are available, additional reports are produced for `solar_gen`/`wind_gen` (or `solar_cf`/`wind_cf`)
 
 ## Config
 
