@@ -1,0 +1,304 @@
+"""Novice-friendly Resilience Lab dashboard for Phase 1 workflows."""
+
+from __future__ import annotations
+
+import json
+from datetime import date, timedelta
+from pathlib import Path
+
+import pandas as pd
+import streamlit as st
+
+from renewgrid.app.components.health import render_health_checklist
+from renewgrid.app.components.transparency import render_transparency_box
+from renewgrid.app.state import RunConfig
+from renewgrid.config import load_environment
+from renewgrid.data.merge import build_daily_dataset
+from renewgrid.features.build_features import build_feature_frame
+from renewgrid.forecast.evaluate import rolling_origin_evaluate
+from renewgrid.util.schema import validate_daily_frame
+from renewgrid.util.units import assert_daily_mw_avg
+
+
+def _resolve_dates(preset: str, custom_start: date, custom_end: date) -> tuple[date, date]:
+    end_date = date.today() - timedelta(days=1)
+    presets = {"30D": 30, "90D": 90, "180D": 180, "365D": 365}
+    if preset in presets:
+        start_date = end_date - timedelta(days=presets[preset] - 1)
+        return start_date, end_date
+    return custom_start, custom_end
+
+
+@st.cache_data(ttl=600)
+def _load_dataset(
+    region: str,
+    start_date: date,
+    end_date: date,
+    use_rare: bool,
+    rare_path: str | None,
+    base_dir: str,
+) -> pd.DataFrame:
+    """Build and cache deterministic daily dataset for UI use."""
+    return build_daily_dataset(
+        region=region,
+        start_date=start_date,
+        end_date=end_date,
+        base_dir=base_dir,
+        rare_path=rare_path if use_rare else None,
+    )
+
+
+@st.cache_data(ttl=600)
+def _evaluate(
+    frame: pd.DataFrame,
+    target_col: str,
+    feature_cols: tuple[str, ...],
+    model_choice: str,
+    horizon_days: int,
+) -> dict[str, object]:
+    """Run cached Phase 1 rolling-origin evaluation."""
+    models = ("persistence",) if model_choice == "persistence" else (model_choice, "persistence")
+    return rolling_origin_evaluate(
+        frame=frame,
+        target_col=target_col,
+        feature_cols=list(feature_cols),
+        horizons=tuple(range(1, horizon_days + 1)),
+        min_train_size=max(20, min(60, len(frame) // 3)),
+        models=models,
+    )
+
+
+def _render_answer_cards(dataset: pd.DataFrame, summary: pd.DataFrame | None) -> None:
+    c1, c2, c3, c4 = st.columns(4)
+    avg_demand = float(dataset["demand_mw_avg"].mean())
+    c1.metric("Avg Demand (MW)", f"{avg_demand:,.1f}")
+    c1.caption("Average daily power demand for selected window.")
+
+    t_col = "weather_t2m" if "weather_t2m" in dataset.columns else None
+    w_col = "weather_ws10m" if "weather_ws10m" in dataset.columns else None
+    temp_text = f"{dataset[t_col].mean():.1f} / {dataset[t_col].max():.1f}" if t_col else "N/A"
+    wind_text = f"{dataset[w_col].mean():.1f} / {dataset[w_col].min():.1f}" if w_col else "N/A"
+
+    c2.metric("Temp Avg / Max", temp_text)
+    c2.caption("Daily near-surface temperature summary.")
+    c3.metric("Wind Avg / Min", wind_text)
+    c3.caption("Daily wind speed summary.")
+
+    if summary is not None and not summary.empty and "skill_vs_persistence" in summary.columns:
+        model_rows = summary[summary["model"] != "persistence"]
+        skill = float(model_rows["skill_vs_persistence"].mean()) if not model_rows.empty else 0.0
+        c4.metric("Forecast Skill vs Persist", f"{skill:.3f}")
+    else:
+        c4.metric("Forecast Skill vs Persist", "N/A")
+    c4.caption("Positive means better than persistence baseline.")
+
+    with st.expander("Details"):
+        st.write(
+            "Cards summarize demand, weather, and model benchmark signal for quick interpretation."
+        )
+
+
+def _render_story_chart(dataset: pd.DataFrame) -> None:
+    options = {
+        "Demand (MW avg)": "demand_mw_avg",
+        "Temperature (T2M)": "weather_t2m",
+        "Wind Speed (WS10M)": "weather_ws10m",
+        "Solar Proxy (ALLSKY)": "weather_allsky_sfc_sw_dwn",
+    }
+    available = {k: v for k, v in options.items() if v in dataset.columns}
+    selected = st.multiselect(
+        "Story chart variables",
+        options=list(available.keys()),
+        default=[k for k in ["Demand (MW avg)", "Temperature (T2M)"] if k in available],
+    )
+    if selected:
+        chart = dataset[["date", *[available[s] for s in selected]]].set_index("date")
+        st.line_chart(chart)
+
+
+def _render_guided(base_dir: Path) -> None:
+    st.subheader("Guided Run")
+    st.caption("Recommended for first-time users: choose region, question, timeframe, then run.")
+
+    region = st.radio(
+        "Step 1: Choose region",
+        options=["CAISO", "ERCOT"],
+        help="CAISO: solar-heavy heat stress testbed. ERCOT: wind-heavy demand-growth testbed.",
+        horizontal=True,
+    )
+    question = st.radio(
+        "Step 2: Choose question",
+        options=["How did demand & weather behave?", "How good are forecasts?"],
+        horizontal=True,
+    )
+    preset = st.selectbox("Step 3: Choose timeframe", ["30D", "90D", "180D", "365D", "Custom"])
+    col_a, col_b = st.columns(2)
+    custom_start = col_a.date_input("Custom start", value=date.today() - timedelta(days=180))
+    custom_end = col_b.date_input("Custom end", value=date.today() - timedelta(days=1))
+
+    use_rare = st.checkbox("Use optional RARE file", value=False)
+    rare_path = st.text_input("RARE path", value="") if use_rare else ""
+    model_choice = st.selectbox("Model", ["persistence", "prophet", "xgboost"], index=0)
+    horizon_days = st.slider("Horizon days", min_value=1, max_value=3, value=3)
+
+    start_date, end_date = _resolve_dates(preset, custom_start, custom_end)
+    st.caption(
+        f"Data freshness: latest available daily API window ending {end_date.isoformat()} "
+        "(UTC day)."
+    )
+    st.caption(f"Selected analysis question: {question}")
+
+    flags = {
+        "dataset_loaded": False,
+        "schema_valid": False,
+        "units_valid": False,
+        "eval_ran": False,
+        "snapshot_saved": False,
+    }
+    messages = {k: "pending" for k in flags}
+
+    if st.button("Run", type="primary"):
+        config = RunConfig(
+            region=region,
+            start_date=start_date,
+            end_date=end_date,
+            timeframe_preset=preset,
+            use_rare=use_rare,
+            rare_path=rare_path or None,
+            model_choice=model_choice,
+            horizon_days=horizon_days,
+        )
+
+        dataset = _load_dataset(
+            region=config.region,
+            start_date=config.start_date,
+            end_date=config.end_date,
+            use_rare=config.use_rare,
+            rare_path=config.rare_path,
+            base_dir=str(base_dir),
+        )
+        flags["dataset_loaded"] = True
+        messages["dataset_loaded"] = f"{len(dataset)} daily rows loaded"
+
+        validate_daily_frame(dataset)
+        flags["schema_valid"] = True
+        messages["schema_valid"] = "Daily schema contract passed"
+
+        assert_daily_mw_avg(dataset)
+        flags["units_valid"] = True
+        messages["units_valid"] = "Units contract checks passed"
+
+        features = build_feature_frame(dataset, target_col="demand_mw_avg")
+        feature_cols = tuple(
+            c
+            for c in features.columns
+            if c not in {"date", "region", "source", "demand_mw_avg"}
+            and pd.api.types.is_numeric_dtype(features[c])
+        )
+        evaluation = _evaluate(
+            features,
+            "demand_mw_avg",
+            feature_cols,
+            config.model_choice,
+            config.horizon_days,
+        )
+        flags["eval_ran"] = True
+        messages["eval_ran"] = "Rolling-origin evaluation complete"
+
+        st.session_state["run_config"] = config
+        st.session_state["dataset"] = dataset
+        st.session_state["evaluation"] = evaluation
+
+    if "run_config" in st.session_state and "dataset" in st.session_state:
+        config = st.session_state["run_config"]
+        dataset = st.session_state["dataset"]
+        evaluation = st.session_state.get("evaluation")
+
+        summary = evaluation.get("summary") if isinstance(evaluation, dict) else None
+        if isinstance(summary, pd.DataFrame):
+            _render_answer_cards(dataset, summary)
+        else:
+            _render_answer_cards(dataset, None)
+
+        _render_story_chart(dataset)
+
+        dataset_info = {
+            "rare_loaded": (
+                "yes"
+                if any(
+                    c in dataset.columns
+                    for c in ["solar_cf", "wind_cf", "solar_gen_mwh", "wind_gen_mwh"]
+                )
+                else "no"
+            )
+        }
+        render_transparency_box(config, dataset_info)
+
+        st.markdown("### Downloads")
+        st.download_button(
+            "Download dataset CSV",
+            data=dataset.to_csv(index=False).encode("utf-8"),
+            file_name=f"{config.region}_daily_dataset.csv",
+            mime="text/csv",
+        )
+        st.download_button(
+            "Download run_config.json",
+            data=json.dumps(config.to_dict(), indent=2).encode("utf-8"),
+            file_name="run_config.json",
+            mime="application/json",
+        )
+        if isinstance(evaluation, dict):
+            payload = {
+                "availability": evaluation.get("availability", {}),
+                "summary": evaluation.get("summary", pd.DataFrame()).to_dict(orient="records")
+                if isinstance(evaluation.get("summary"), pd.DataFrame)
+                else [],
+            }
+            st.download_button(
+                "Download evaluation_metrics.json",
+                data=json.dumps(payload, indent=2).encode("utf-8"),
+                file_name="evaluation_metrics.json",
+                mime="application/json",
+            )
+
+    render_health_checklist(flags, messages)
+
+
+def main() -> None:
+    """Streamlit entrypoint for Resilience Lab dashboard."""
+    st.set_page_config(page_title="RenewGrid Resilience Lab", layout="wide")
+    st.title("RenewGrid Resilience Lab")
+    st.caption("Phase 1 only: public-data daily monitoring and forecast evaluation")
+
+    base_dir = Path(__file__).resolve().parents[3]
+    load_environment(base_dir / ".env")
+
+    mode = st.toggle("Guided Run (recommended)", value=True)
+
+    if mode:
+        _render_guided(base_dir)
+    else:
+        tabs = st.tabs([
+            "Guided Run",
+            "Monitor Map",
+            "Data Explorer",
+            "Forecast Lab",
+            "Compare Runs",
+            "Scenarios (Phase 2 preview)",
+        ])
+        with tabs[0]:
+            _render_guided(base_dir)
+        with tabs[1]:
+            st.info("Monitor Map will be loaded from pages module.")
+        with tabs[2]:
+            st.info("Data Explorer will be loaded from pages module.")
+        with tabs[3]:
+            st.info("Forecast Lab will be loaded from pages module.")
+        with tabs[4]:
+            st.info("Compare Runs will be loaded from snapshots module.")
+        with tabs[5]:
+            st.warning("Phase 2 scenarios are preview-only in Phase 1 UI.")
+
+
+if __name__ == "__main__":
+    main()

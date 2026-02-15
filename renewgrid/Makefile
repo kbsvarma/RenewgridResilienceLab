@@ -26,7 +26,7 @@ lint:
 	$(RUN_ISORT) --check-only src tests
 
 run:
-	$(RUN_STREAMLIT) run src/renewgrid/app/streamlit_app.py
+	$(RUN_STREAMLIT) run src/renewgrid/app/lab_ui.py
 
 preflight-pyarrow:
 	@PYTHONPATH=src $(RUN_PYTHON) -c "import sys; from renewgrid.util.parquet import has_parquet_engine; ok = has_parquet_engine(); print(f'pyarrow_available={ok}'); sys.exit(0 if ok else 1)"
