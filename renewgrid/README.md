@@ -92,6 +92,19 @@ Daily demand aggregation choice:
 
 Conversion helpers live in `src/renewgrid/util/units.py`.
 
+## Data Schema Contract
+
+Required columns:
+- `date`
+- `demand_mw_avg`
+
+Optional columns:
+- `solar_cf`, `wind_cf` (preferred canonical renewable signals)
+- `solar_gen_mwh`, `wind_gen_mwh` (fallback when capacity factors cannot be computed)
+- `weather_*` columns from NASA POWER
+
+Validation helpers live in `src/renewgrid/util/schema.py`.
+
 Optional RARE validation file:
 - Provide `--rare-path /absolute/path/to/rare_daily.parquet` to merge optional daily solar/wind series.
 
@@ -114,6 +127,8 @@ Normalization behavior:
 - This repository is a **research stress-test tool**, not an operational forecasting platform.
 - Daily series are derived from external APIs and subject to source latency/revisions.
 - Phase 1 reports are for comparative model benchmarking, not real-time dispatch operations.
+- Reproducibility scope: deterministic daily aggregation/feature logic with network-free tests; upstream API data can still change over time.
+- Data-source policy: no scraping and no paywalled sources in the core pipeline.
 
 ## Modules
 

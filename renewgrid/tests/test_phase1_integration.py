@@ -11,6 +11,7 @@ import pytest
 from renewgrid.data import merge
 from renewgrid.features.build_features import build_feature_frame
 from renewgrid.forecast.evaluate import rolling_origin_evaluate, save_evaluation_report
+from renewgrid.util.schema import validate_daily_frame
 
 
 def test_phase1_end_to_end_mocked(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -63,6 +64,7 @@ def test_phase1_end_to_end_mocked(monkeypatch: pytest.MonkeyPatch, tmp_path: Pat
             base_dir=tmp_path,
             rare_path="dummy.parquet",
         )
+        validate_daily_frame(dataset)
         features = build_feature_frame(dataset, target_col="demand_mw_avg")
         feature_cols = [
             c
