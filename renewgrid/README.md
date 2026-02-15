@@ -10,6 +10,8 @@ uv sync --extra dev
 cp .env.example .env
 ```
 
+If `uv` is not installed, the `Makefile` falls back to system `python` and CLI tools.
+
 ## Commands
 
 - `make test`: run pytest.
