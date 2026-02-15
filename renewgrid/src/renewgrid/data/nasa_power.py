@@ -11,6 +11,20 @@ import requests
 NASA_POWER_DAILY_URL = "https://power.larc.nasa.gov/api/temporal/daily/point"
 
 
+def clean_power_values(df: pd.DataFrame) -> pd.DataFrame:
+    """Normalize NASA POWER sentinel missing values into NaN.
+
+    NASA POWER commonly uses -999 (or values <= -900) as missing sentinels.
+    This function applies the cleanup to weather/value numeric columns.
+    """
+    cleaned = df.copy()
+    target_cols = [c for c in cleaned.columns if c.startswith("weather_") or c == "value"]
+    for col in target_cols:
+        series = pd.to_numeric(cleaned[col], errors="coerce")
+        cleaned[col] = series.mask(series <= -900)
+    return cleaned
+
+
 def fetch_daily_weather(
     latitude: float,
     longitude: float,
@@ -37,7 +51,9 @@ def fetch_daily_weather(
     index = pd.to_datetime(list(values_by_param[parameter_list[0]].keys()), format="%Y%m%d")
     frame = pd.DataFrame({"date": index})
     for parameter in parameter_list:
-        frame[f"weather_{parameter.lower()}"] = list(values_by_param[parameter].values())
+        col = f"weather_{parameter.lower()}"
+        frame[col] = pd.to_numeric(list(values_by_param[parameter].values()), errors="coerce")
+    frame = clean_power_values(frame)
     frame["source"] = "nasa_power"
     frame["latitude"] = latitude
     frame["longitude"] = longitude
