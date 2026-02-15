@@ -15,7 +15,7 @@ except ImportError:  # pragma: no cover - import-time environment fallback
 
 OVERLAY_TO_COLUMN: dict[str, tuple[str, str]] = {
     "Demand": ("demand_mw_avg", "MW"),
-    "Temperature": ("weather_t2m", "C"),
+    "Temperature": ("weather_t2m", "°C"),
     "Wind": ("weather_ws10m", "m/s"),
     "Solar proxy": ("weather_allsky_sfc_sw_dwn", "kWh/m^2/day"),
 }
@@ -51,13 +51,28 @@ def _qualitative_label(value: float, series: pd.Series) -> str:
     return "Normal"
 
 
+def _status_from_latest(series: pd.Series) -> str:
+    clean = series.dropna()
+    if clean.empty:
+        return "NORMAL"
+    latest = float(clean.iloc[-1])
+    p33 = float(clean.quantile(0.33))
+    p67 = float(clean.quantile(0.67))
+    if latest < p33:
+        return "LOW"
+    if latest > p67:
+        return "HIGH"
+    return "NORMAL"
+
+
 def render_monitor_map(
     base_dir: Path,
     dataset_by_region: dict[str, pd.DataFrame] | None = None,
     key_prefix: str = "monitor_map",
 ) -> None:
     """Render map with region overlays and plain-English tooltips."""
-    st.subheader("Monitor Map")
+    st.subheader("Where is this region?")
+    st.caption("Click CAISO or ERCOT to view its demand and weather for the selected window.")
     st.caption("Latest available daily window (cached 10 minutes)")
     if pdk is None:
         st.error(
@@ -67,7 +82,7 @@ def render_monitor_map(
         return
 
     overlay = st.selectbox(
-        "Overlay mode",
+        "Overlay",
         list(OVERLAY_TO_COLUMN.keys()),
         key=f"{key_prefix}_overlay",
     )
@@ -93,8 +108,10 @@ def render_monitor_map(
         series = region_frame[col_name].dropna()
         if series.empty:
             continue
-        overlay_value = float(series.mean())
-        label = _qualitative_label(overlay_value, series)
+        latest_value = float(series.iloc[-1])
+        mean_value = float(series.mean())
+        label_upper = _status_from_latest(series)
+        overlay_value = mean_value
         regions_df.append(
             {
                 "region": region,
@@ -103,10 +120,12 @@ def render_monitor_map(
                 "lon": float(props.get("lon", 0.0)),
                 "value": overlay_value,
                 "unit": unit,
-                "label": label,
+                "label": label_upper,
+                "mean_value": mean_value,
+                "latest_value": latest_value,
                 "tooltip": (
-                    f"{region}\n{overlay}: {overlay_value:,.2f} {unit}\n"
-                    f"Status: {label} for this selected window"
+                    f"{region} - {overlay} is {label_upper} vs this window's normal\n"
+                    f"Mean: {mean_value:,.2f} {unit} | Latest: {latest_value:,.2f} {unit}"
                 ),
                 "geometry": feature.get("geometry"),
             }
@@ -147,8 +166,8 @@ def render_monitor_map(
         pickable=True,
         stroked=True,
         filled=True,
-        get_fill_color="[74, 144, 226, 70]",
-        get_line_color="[21, 54, 120, 180]",
+        get_fill_color="[67, 170, 139, 95]",
+        get_line_color="[43, 89, 71, 210]",
         line_width_min_pixels=2,
     )
     marker_layer = pdk.Layer(
@@ -156,27 +175,26 @@ def render_monitor_map(
         data=marker_df,
         get_position="[lon, lat]",
         get_radius=85000,
-        get_fill_color="[236, 112, 99, 200]",
+        get_fill_color="[245, 245, 245, 230]",
+        get_line_color="[20, 20, 20, 220]",
+        stroked=True,
+        line_width_min_pixels=1,
         pickable=True,
-    )
-    text_layer = pdk.Layer(
-        "TextLayer",
-        data=marker_df,
-        get_position="[lon, lat]",
-        get_text="region",
-        get_size=16,
-        get_color=[25, 25, 25, 255],
-        get_alignment_baseline="'bottom'",
-        get_pixel_offset=[0, -14],
     )
 
     deck = pdk.Deck(
-        layers=[polygon_layer, marker_layer, text_layer],
-        initial_view_state=pdk.ViewState(latitude=34.7, longitude=-109.5, zoom=3.7),
+        layers=[polygon_layer, marker_layer],
+        initial_view_state=pdk.ViewState(latitude=37.0, longitude=-98.0, zoom=3.0),
+        map_style="mapbox://styles/mapbox/dark-v11",
         tooltip={"text": "{tooltip}"},
     )
-    st.pydeck_chart(deck, use_container_width=True)
+    st.pydeck_chart(deck, use_container_width=True, height=470)
 
     detail = data[selected_region]
-    st.caption(f"{selected_region} mean {overlay}: {detail[col_name].dropna().mean():,.2f} {unit}")
-
+    detail_series = detail[col_name].dropna()
+    if not detail_series.empty:
+        mean_value = float(detail_series.mean())
+        latest_value = float(detail_series.iloc[-1])
+        st.caption(
+            f"{selected_region} {overlay}: mean {mean_value:,.2f} {unit} | latest {latest_value:,.2f} {unit}"
+        )
