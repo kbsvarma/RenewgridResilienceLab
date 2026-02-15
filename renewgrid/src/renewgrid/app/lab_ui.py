@@ -11,6 +11,7 @@ import streamlit as st
 
 from renewgrid.app.components.health import render_health_checklist
 from renewgrid.app.components.monitor_map import render_monitor_map as render_monitor_map_component
+from renewgrid.app.components.story_chart import render_story_chart
 from renewgrid.app.components.transparency import render_transparency_box
 from renewgrid.app.pages.compare_runs import render_compare_runs
 from renewgrid.app.pages.data_explorer import render_data_explorer
@@ -127,24 +128,6 @@ def _render_answer_cards(dataset: pd.DataFrame, summary: pd.DataFrame | None) ->
         )
 
 
-def _render_story_chart(dataset: pd.DataFrame) -> None:
-    options = {
-        "Demand (MW avg)": "demand_mw_avg",
-        "Temperature (T2M)": "weather_t2m",
-        "Wind Speed (WS10M)": "weather_ws10m",
-        "Solar Proxy (ALLSKY)": "weather_allsky_sfc_sw_dwn",
-    }
-    available = {k: v for k, v in options.items() if v in dataset.columns}
-    selected = st.multiselect(
-        "Story chart variables",
-        options=list(available.keys()),
-        default=[k for k in ["Demand (MW avg)", "Temperature (T2M)"] if k in available],
-    )
-    if selected:
-        chart = dataset[["date", *[available[s] for s in selected]]].set_index("date")
-        st.line_chart(chart)
-
-
 def _render_guided(base_dir: Path) -> None:
     st.subheader("Guided Run")
     st.caption("Recommended for first-time users: choose region, question, timeframe, then run.")
@@ -259,7 +242,7 @@ def _render_guided(base_dir: Path) -> None:
         else:
             _render_answer_cards(dataset, None)
 
-        _render_story_chart(dataset)
+        render_story_chart(dataset, key_prefix="guided_story")
         with st.expander("Map preview", expanded=False):
             render_monitor_map_component(
                 base_dir=base_dir,
