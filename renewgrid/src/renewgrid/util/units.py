@@ -5,16 +5,17 @@ from __future__ import annotations
 import pandas as pd
 
 ScalarOrSeries = float | pd.Series
+HOURS_PER_DAY = 24.0
 
 
 def mw_avg_to_mwh(mw_avg: ScalarOrSeries) -> ScalarOrSeries:
     """Convert daily average power (MW) to daily energy (MWh)."""
-    return mw_avg * 24.0
+    return mw_avg * HOURS_PER_DAY
 
 
 def mwh_to_mw_avg(mwh: ScalarOrSeries) -> ScalarOrSeries:
     """Convert daily energy (MWh) to daily average power (MW)."""
-    return mwh / 24.0
+    return mwh / HOURS_PER_DAY
 
 
 def assert_daily_mw_avg(df: pd.DataFrame, col: str = "demand_mw_avg") -> None:
