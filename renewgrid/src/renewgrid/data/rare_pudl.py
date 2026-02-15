@@ -26,12 +26,25 @@ def normalize_rare_frame(frame: pd.DataFrame) -> pd.DataFrame:
     data["date"] = pd.to_datetime(data["date"]).dt.floor("D")
 
     if {"solar_cf", "wind_cf"}.issubset(set(data.columns)):
-        return data[["date", "region", "solar_cf", "wind_cf"]]
+        clipped = data.copy()
+        for col in ("solar_cf", "wind_cf"):
+            raw = pd.to_numeric(clipped[col], errors="coerce")
+            if raw.isna().any():
+                raise ValueError(f"{col} contains non-numeric values.")
+            out_of_bounds = ((raw < 0) | (raw > 1)).sum()
+            if out_of_bounds > 0:
+                LOGGER.warning("%s had %s out-of-range values; clipping to [0, 1]", col, out_of_bounds)
+            clipped[col] = raw.clip(lower=0.0, upper=1.0)
+        return clipped[["date", "region", "solar_cf", "wind_cf"]]
 
     if {"solar_gen", "wind_gen"}.issubset(set(data.columns)):
         if {"solar_capacity", "wind_capacity"}.issubset(set(data.columns)):
-            data["solar_cf"] = data["solar_gen"] / data["solar_capacity"].replace({0: pd.NA})
-            data["wind_cf"] = data["wind_gen"] / data["wind_capacity"].replace({0: pd.NA})
+            # Assumption: daily generation is in MWh/day and capacity is MW.
+            # Daily CF = generation / (capacity * 24h).
+            data["solar_cf"] = data["solar_gen"] / (data["solar_capacity"].replace({0: pd.NA}) * 24.0)
+            data["wind_cf"] = data["wind_gen"] / (data["wind_capacity"].replace({0: pd.NA}) * 24.0)
+            data["solar_cf"] = pd.to_numeric(data["solar_cf"], errors="coerce").clip(lower=0.0, upper=1.0)
+            data["wind_cf"] = pd.to_numeric(data["wind_cf"], errors="coerce").clip(lower=0.0, upper=1.0)
             return data[["date", "region", "solar_cf", "wind_cf"]]
 
         LOGGER.warning("RARE gen provided without capacity; cannot compute capacity factor.")

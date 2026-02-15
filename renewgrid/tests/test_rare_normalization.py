@@ -30,8 +30,8 @@ def test_normalize_rare_computes_cf_from_gen_and_capacity() -> None:
         {
             "date": ["2024-01-01"],
             "region": ["ERCOT"],
-            "solar_gen": [300.0],
-            "wind_gen": [400.0],
+            "solar_gen": [7200.0],
+            "wind_gen": [9600.0],
             "solar_capacity": [1000.0],
             "wind_capacity": [800.0],
         }
@@ -57,3 +57,20 @@ def test_normalize_rare_warns_and_renames_when_capacity_missing(
     out = normalize_rare_frame(frame)
     assert {"solar_gen_mwh", "wind_gen_mwh"}.issubset(set(out.columns))
     assert "cannot compute capacity factor" in caplog.text
+
+
+def test_normalize_rare_clips_out_of_range_cf(caplog: pytest.LogCaptureFixture) -> None:
+    """Out-of-range CF values should be clipped and logged."""
+    caplog.set_level(logging.WARNING)
+    frame = pd.DataFrame(
+        {
+            "date": ["2024-01-01"],
+            "region": ["CAISO"],
+            "solar_cf": [1.2],
+            "wind_cf": [-0.1],
+        }
+    )
+    out = normalize_rare_frame(frame)
+    assert out["solar_cf"].iloc[0] == 1.0
+    assert out["wind_cf"].iloc[0] == 0.0
+    assert "clipping to [0, 1]" in caplog.text
