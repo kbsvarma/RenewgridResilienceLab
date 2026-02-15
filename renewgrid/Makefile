@@ -1,4 +1,4 @@
-.PHONY: test lint run preflight-pyarrow pipeline inspect preview
+.PHONY: test lint run preflight-pyarrow pipeline inspect preview phase1
 
 UV := $(shell command -v uv 2>/dev/null)
 ifeq ($(UV),)
@@ -39,3 +39,6 @@ inspect:
 
 preview:
 	PYTHONPATH=src $(RUN_PYTHON) -c "from pathlib import Path; import pandas as pd; base=Path('data/processed'); files=('nasa_power_daily.parquet','eia_rto_hourly.parquet'); [print(f'--- {name} (head=5) ---') or print('missing' if not (base/name).exists() else pd.read_parquet(base/name).head(5).to_string(index=False)) for name in files]"
+
+phase1: preflight-pyarrow
+	PYTHONPATH=src $(RUN_PYTHON) -m renewgrid.scripts.phase1_run

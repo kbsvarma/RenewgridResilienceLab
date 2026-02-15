@@ -31,6 +31,29 @@ If `uv` is not installed, the `Makefile` falls back to system `python` and CLI t
 - `make pipeline`: run the Phase 1 hello pipeline and write parquet outputs.
 - `make inspect`: print row counts and columns for hello-pipeline parquet outputs.
 - `make preview`: print first 5 rows from hello-pipeline parquet outputs.
+- `make phase1`: build CAISO/ERCOT daily datasets and write evaluation reports.
+
+## Phase 1 Quickstart
+
+```bash
+cd renewgrid
+uv sync --extra dev
+cp .env.example .env
+PYTHONPATH=src python -m renewgrid.scripts.phase1_run --days 180
+```
+
+or with pip:
+
+```bash
+cd renewgrid
+pip install -e ".[dev]"
+cp .env.example .env
+PYTHONPATH=src python -m renewgrid.scripts.phase1_run --days 180
+```
+
+Outputs:
+- datasets: `data/processed/CAISO_daily_<start>_<end>.parquet` and `data/processed/ERCOT_daily_<start>_<end>.parquet`
+- reports: `reports/phase1/*_demand_mw_avg_report.json` and `.md`
 
 ## Config
 
@@ -41,6 +64,14 @@ Environment variables:
 Default region presets:
 - `CAISO`: respondent `CISO`
 - `ERCOT`: respondent `ERCO`
+
+Daily demand aggregation choice:
+- EIA hourly demand is aggregated to UTC-day **mean** value and exposed as `demand_mw_avg`.
+- This keeps units consistent as MW-average at daily resolution for Phase 1.
+
+Optional RARE validation file:
+- Provide `--rare-path /absolute/path/to/rare_daily.parquet` to merge optional daily solar/wind series.
+- Expected columns: `date`, `region`, and either (`solar_gen`, `wind_gen`) or (`solar_cf`, `wind_cf`).
 
 ## Modules
 
