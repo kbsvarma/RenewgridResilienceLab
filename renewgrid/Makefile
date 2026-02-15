@@ -1,4 +1,4 @@
-.PHONY: test lint run pipeline inspect
+.PHONY: test lint run pipeline inspect preview
 
 UV := $(shell command -v uv 2>/dev/null)
 ifeq ($(UV),)
@@ -33,3 +33,6 @@ pipeline:
 
 inspect:
 	PYTHONPATH=src $(RUN_PYTHON) -c "from pathlib import Path; import pandas as pd; base=Path('data/processed'); files=('nasa_power_daily.parquet','eia_rto_daily.parquet'); [print(f'--- {name} ---') or print('missing' if not (base/name).exists() else 'rows='+str(len((df:=pd.read_parquet(base/name))))+' columns='+str(list(df.columns))) for name in files]"
+
+preview:
+	PYTHONPATH=src $(RUN_PYTHON) -c "from pathlib import Path; import pandas as pd; base=Path('data/processed'); files=('nasa_power_daily.parquet','eia_rto_daily.parquet'); [print(f'--- {name} (head=5) ---') or print('missing' if not (base/name).exists() else pd.read_parquet(base/name).head(5).to_string(index=False)) for name in files]"
