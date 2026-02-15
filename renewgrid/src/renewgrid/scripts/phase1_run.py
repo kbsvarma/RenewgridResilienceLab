@@ -36,7 +36,9 @@ def _resolve_dates(start: str | None, end: str | None, days: int) -> tuple[date,
 def _targets_for_dataset(dataset: pd.DataFrame) -> list[str]:
     """Return forecast targets available in the assembled dataset."""
     targets = ["demand_mw_avg"]
-    if {"solar_gen", "wind_gen"}.issubset(set(dataset.columns)):
+    if {"solar_gen_mwh", "wind_gen_mwh"}.issubset(set(dataset.columns)):
+        targets.extend(["solar_gen_mwh", "wind_gen_mwh"])
+    elif {"solar_gen", "wind_gen"}.issubset(set(dataset.columns)):
         targets.extend(["solar_gen", "wind_gen"])
     elif {"solar_cf", "wind_cf"}.issubset(set(dataset.columns)):
         targets.extend(["solar_cf", "wind_cf"])
@@ -52,7 +54,15 @@ def run_phase1(
     """Run dataset build and evaluation for CAISO and ERCOT."""
     results: dict[str, dict[str, dict[str, Path]]] = {}
     reports_dir = Path(base_dir) / "reports" / "phase1"
-    non_feature_targets = {"demand_mw_avg", "solar_gen", "wind_gen", "solar_cf", "wind_cf"}
+    non_feature_targets = {
+        "demand_mw_avg",
+        "solar_gen",
+        "wind_gen",
+        "solar_gen_mwh",
+        "wind_gen_mwh",
+        "solar_cf",
+        "wind_cf",
+    }
 
     for region in ("CAISO", "ERCOT"):
         dataset = build_daily_dataset(

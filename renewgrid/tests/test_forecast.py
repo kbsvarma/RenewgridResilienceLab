@@ -56,8 +56,12 @@ def test_evaluate_runs_end_to_end(tmp_path: Path) -> None:
             "month": [1] * 31 + [2] * 9,
             "demand_mw_avg_lag_1": pd.Series(np.linspace(100.0, 130.0, 40)).shift(1),
             "demand_mw_avg_lag_7": pd.Series(np.linspace(100.0, 130.0, 40)).shift(7),
-            "demand_mw_avg_roll_7": pd.Series(np.linspace(100.0, 130.0, 40)).shift(1).rolling(7).mean(),
-            "demand_mw_avg_roll_14": pd.Series(np.linspace(100.0, 130.0, 40)).shift(1).rolling(14).mean(),
+            "demand_mw_avg_roll_7": (
+                pd.Series(np.linspace(100.0, 130.0, 40)).shift(1).rolling(7).mean()
+            ),
+            "demand_mw_avg_roll_14": (
+                pd.Series(np.linspace(100.0, 130.0, 40)).shift(1).rolling(14).mean()
+            ),
         }
     )
     feature_cols = [
@@ -126,7 +130,12 @@ def test_phase1_runs_optional_targets_when_available(
 
     monkeypatch.setattr(phase1_run, "rolling_origin_evaluate", fake_eval)
 
-    def fake_save(evaluation: dict[str, object], region: str, target_col: str, output_dir: Path) -> dict[str, Path]:
+    def fake_save(
+        evaluation: dict[str, object],
+        region: str,
+        target_col: str,
+        output_dir: Path,
+    ) -> dict[str, Path]:
         _ = evaluation
         out = Path(output_dir)
         out.mkdir(parents=True, exist_ok=True)

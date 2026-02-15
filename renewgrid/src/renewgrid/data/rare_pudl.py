@@ -11,6 +11,37 @@ import pandas as pd
 LOGGER = logging.getLogger(__name__)
 
 
+def normalize_rare_frame(frame: pd.DataFrame) -> pd.DataFrame:
+    """Normalize RARE input to canonical internal columns.
+
+    Preferred canonical output is ``solar_cf`` and ``wind_cf``.
+    If only generation is available without capacity, output ``solar_gen_mwh``/``wind_gen_mwh``
+    and emit a warning.
+    """
+    required_base = {"date", "region"}
+    if not required_base.issubset(set(frame.columns)):
+        raise ValueError("RARE parquet must include date and region columns.")
+
+    data = frame.copy()
+    data["date"] = pd.to_datetime(data["date"]).dt.floor("D")
+
+    if {"solar_cf", "wind_cf"}.issubset(set(data.columns)):
+        return data[["date", "region", "solar_cf", "wind_cf"]]
+
+    if {"solar_gen", "wind_gen"}.issubset(set(data.columns)):
+        if {"solar_capacity", "wind_capacity"}.issubset(set(data.columns)):
+            data["solar_cf"] = data["solar_gen"] / data["solar_capacity"].replace({0: pd.NA})
+            data["wind_cf"] = data["wind_gen"] / data["wind_capacity"].replace({0: pd.NA})
+            return data[["date", "region", "solar_cf", "wind_cf"]]
+
+        LOGGER.warning("RARE gen provided without capacity; cannot compute capacity factor.")
+        data["solar_gen_mwh"] = data["solar_gen"]
+        data["wind_gen_mwh"] = data["wind_gen"]
+        return data[["date", "region", "solar_gen_mwh", "wind_gen_mwh"]]
+
+    raise ValueError("RARE parquet must include solar/wind CF or generation columns.")
+
+
 def load_rare_daily_generation(
     region: str,
     start_date: date,
@@ -33,22 +64,12 @@ def load_rare_daily_generation(
     if frame.empty:
         return None
 
-    required_base = {"date", "region"}
-    if not required_base.issubset(set(frame.columns)):
-        raise ValueError("RARE parquet must include date and region columns.")
-
-    value_cols = {"solar_gen", "wind_gen"} if {"solar_gen", "wind_gen"}.issubset(
-        set(frame.columns)
-    ) else {"solar_cf", "wind_cf"} if {"solar_cf", "wind_cf"}.issubset(set(frame.columns)) else None
-    if value_cols is None:
-        raise ValueError("RARE parquet must include solar/wind generation or capacity-factor columns.")
-
-    data = frame.copy()
-    data["date"] = pd.to_datetime(data["date"]).dt.floor("D")
+    data = normalize_rare_frame(frame)
     mask = (
         (data["region"] == region)
         & (data["date"] >= pd.Timestamp(start_date))
         & (data["date"] <= pd.Timestamp(end_date))
     )
-    filtered = data.loc[mask, ["date", *sorted(value_cols)]].sort_values("date").reset_index(drop=True)
+    value_cols = [c for c in data.columns if c not in {"date", "region"}]
+    filtered = data.loc[mask, ["date", *value_cols]].sort_values("date").reset_index(drop=True)
     return filtered if not filtered.empty else None
