@@ -18,6 +18,7 @@ If `uv` is not installed, the `Makefile` falls back to system `python` and CLI t
 - `make lint`: run ruff, black, isort checks.
 - `make run`: launch Streamlit app.
 - `make pipeline`: run the Phase 1 hello pipeline and write parquet outputs.
+- `make inspect`: print row counts and columns for hello-pipeline parquet outputs.
 
 ## Config
 
