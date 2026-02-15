@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pandas as pd
-import streamlit as st
 from plotly import graph_objects as go
 from plotly.subplots import make_subplots
 
@@ -110,6 +109,7 @@ def _render_plotly_dual_axis(
     left_label: str,
     right_label: str,
     include_zero: bool,
+    st_module: object,
 ) -> None:
     left_col, left_unit = SERIES_OPTIONS[left_label]
     right_col, right_unit = SERIES_OPTIONS[right_label]
@@ -118,7 +118,7 @@ def _render_plotly_dual_axis(
     left_data = _prepare_daily_series(dataset, left_col)
     right_data = _prepare_daily_series(dataset, right_col)
     if left_data.empty or right_data.empty:
-        st.warning("No data available for selected series in this window.")
+        st_module.warning("No data available for selected series in this window.")
         return
 
     fig = make_subplots(specs=[[{"secondary_y": True}]])
@@ -170,14 +170,14 @@ def _render_plotly_dual_axis(
         secondary_y=True,
     )
     _base_layout(fig, left_data["date"])
-    st.plotly_chart(fig, use_container_width=True)
+    st_module.plotly_chart(fig, use_container_width=True)
 
 
-def _render_plotly_single(dataset: pd.DataFrame, label: str) -> None:
+def _render_plotly_single(dataset: pd.DataFrame, label: str, st_module: object) -> None:
     col, unit = SERIES_OPTIONS[label]
     data = _prepare_daily_series(dataset, col)
     if data.empty:
-        st.warning("No data available for selected series in this window.")
+        st_module.warning("No data available for selected series in this window.")
         return
     fig = go.Figure()
     fig.add_trace(
@@ -200,10 +200,10 @@ def _render_plotly_single(dataset: pd.DataFrame, label: str) -> None:
         gridwidth=1,
     )
     _base_layout(fig, data["date"])
-    st.plotly_chart(fig, use_container_width=True)
+    st_module.plotly_chart(fig, use_container_width=True)
 
 
-def _render_plotly_normalized(dataset: pd.DataFrame, labels: list[str]) -> None:
+def _render_plotly_normalized(dataset: pd.DataFrame, labels: list[str], st_module: object) -> None:
     fig = go.Figure()
     dates_ref: pd.Series | None = None
     for label in labels:
@@ -222,7 +222,7 @@ def _render_plotly_normalized(dataset: pd.DataFrame, labels: list[str]) -> None:
             )
         )
     if not fig.data:
-        st.warning("No non-missing data available for normalized comparison.")
+        st_module.warning("No non-missing data available for normalized comparison.")
         return
     fig.update_yaxes(
         title_text="Normalized scale (0-100)",
@@ -234,8 +234,8 @@ def _render_plotly_normalized(dataset: pd.DataFrame, labels: list[str]) -> None:
         gridwidth=1,
     )
     _base_layout(fig, dates_ref if dates_ref is not None else pd.Series(dtype="datetime64[ns]"))
-    st.caption("Normalized for comparison only.")
-    st.plotly_chart(fig, use_container_width=True)
+    st_module.caption("Normalized for comparison only.")
+    st_module.plotly_chart(fig, use_container_width=True)
 
 
 def render_story_chart(
@@ -247,6 +247,8 @@ def render_story_chart(
     sources: list[str] | None = None,
 ) -> None:
     """Render story chart with dual-axis, normalized, and single-series modes."""
+    import streamlit as st
+
     available = {
         label: spec
         for label, spec in SERIES_OPTIONS.items()
@@ -306,7 +308,7 @@ def render_story_chart(
 
     if mode == "Single series":
         label = st.selectbox("Series", options=selected, key=f"{key_prefix}_single_series")
-        _render_plotly_single(dataset, label)
+        _render_plotly_single(dataset, label, st)
     elif mode == "Dual axis":
         left_label = "Demand (MW avg)" if "Demand (MW avg)" in selected else selected[0]
         right_label = next(s for s in selected if s != left_label)
@@ -315,9 +317,15 @@ def render_story_chart(
             f"{left_label} ({available[left_label][1]}) | Right axis: "
             f"{right_label} ({available[right_label][1]})"
         )
-        _render_plotly_dual_axis(dataset, left_label, right_label, include_zero=include_zero)
+        _render_plotly_dual_axis(
+            dataset,
+            left_label,
+            right_label,
+            include_zero=include_zero,
+            st_module=st,
+        )
     else:
-        _render_plotly_normalized(dataset, selected)
+        _render_plotly_normalized(dataset, selected, st)
 
     findings = generate_findings(
         df=dataset,
