@@ -94,8 +94,8 @@ def test_aggregate_hourly_to_daily_mean() -> None:
             "region": ["ERCO", "ERCO", "ERCO"],
         }
     )
-    daily = aggregate_hourly_to_daily(frame, value_col="value", method="mean")
-    assert daily["value"].tolist() == [120.0, 200.0]
+    daily = aggregate_hourly_to_daily(frame, method="mean")
+    assert daily["demand_mw_avg"].tolist() == [120.0, 200.0]
     assert daily["date"].tolist() == [pd.Timestamp("2024-01-01"), pd.Timestamp("2024-01-02")]
 
 

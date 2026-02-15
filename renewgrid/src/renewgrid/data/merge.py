@@ -14,13 +14,17 @@ from renewgrid.data.eia import fetch_rto_daily, fetch_rto_hourly
 from renewgrid.data.nasa_power import fetch_daily_solar, fetch_daily_weather
 from renewgrid.data.rare_pudl import load_rare_daily_generation
 from renewgrid.util.parquet import require_parquet_engine
+from renewgrid.util.schema import validate_daily_frame
 from renewgrid.util.units import assert_daily_mw_avg
 
 LOGGER = logging.getLogger(__name__)
 
 
 def run_hello_pipeline(base_dir: str | Path) -> dict[str, Path]:
-    """Run tiny NASA+EIA ingest and save daily parquet outputs under data/processed."""
+    """Run tiny NASA+EIA ingest and save daily parquet outputs under data/processed.
+
+    The daily timestep represents average power over the UTC day.
+    """
     require_parquet_engine()
 
     output_dir = Path(base_dir) / "data" / "processed"
@@ -37,6 +41,8 @@ def run_hello_pipeline(base_dir: str | Path) -> dict[str, Path]:
     nasa_path = output_dir / "nasa_power_daily.parquet"
     eia_path = output_dir / "eia_rto_daily.parquet"
     nasa.to_parquet(nasa_path, index=False)
+    validate_daily_frame(eia)
+    assert_daily_mw_avg(eia)
     eia.to_parquet(eia_path, index=False)
 
     raw_dir = Path(base_dir) / "data" / "raw"
@@ -88,6 +94,9 @@ def build_daily_dataset(
             elif {"solar_gen_mwh", "wind_gen_mwh"}.issubset(set(rare.columns)):
                 LOGGER.info("Merging RARE generation-energy columns for %s", region)
             dataset = dataset.merge(rare, on="date", how="left")
+
+    validate_daily_frame(dataset)
+    assert_daily_mw_avg(dataset)
 
     output_dir = Path(base_dir) / "data" / "processed"
     output_dir.mkdir(parents=True, exist_ok=True)
