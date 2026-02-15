@@ -11,6 +11,8 @@ import streamlit as st
 
 from renewgrid.app.components.health import render_health_checklist
 from renewgrid.app.components.transparency import render_transparency_box
+from renewgrid.app.pages.data_explorer import render_data_explorer
+from renewgrid.app.pages.forecast_lab import render_forecast_lab
 from renewgrid.app.pages.monitor_map import render_monitor_map
 from renewgrid.app.state import RunConfig
 from renewgrid.config import load_environment
@@ -292,9 +294,9 @@ def main() -> None:
         with tabs[1]:
             render_monitor_map(base_dir)
         with tabs[2]:
-            st.info("Data Explorer will be loaded from pages module.")
+            render_data_explorer(st.session_state.get("dataset"))
         with tabs[3]:
-            st.info("Forecast Lab will be loaded from pages module.")
+            render_forecast_lab(st.session_state.get("dataset"))
         with tabs[4]:
             st.info("Compare Runs will be loaded from snapshots module.")
         with tabs[5]:
