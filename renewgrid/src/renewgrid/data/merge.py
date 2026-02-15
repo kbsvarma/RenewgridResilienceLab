@@ -70,7 +70,6 @@ def build_daily_dataset(
 
     Demand is aggregated to daily average MW (``demand_mw_avg``) using UTC-day grouping.
     """
-    require_parquet_engine()
     preset = REGION_PRESETS[region]
     lat = latitude if latitude is not None else preset.latitude
     lon = longitude if longitude is not None else preset.longitude
@@ -103,6 +102,7 @@ def build_daily_dataset(
     out_path = (
         output_dir / f"{region}_daily_{start_date.isoformat()}_{end_date.isoformat()}.parquet"
     )
+    require_parquet_engine()
     dataset.to_parquet(out_path, index=False)
     return dataset.reset_index(drop=True)
 
