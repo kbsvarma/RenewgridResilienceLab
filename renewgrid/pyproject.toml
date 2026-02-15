@@ -50,3 +50,7 @@ pythonpath = ["src"]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 addopts = "-q"
+markers = [
+  "phase2: Phase 2 stress testing suite",
+  "phase3: Phase 3 resilience scoring/optimization suite (not part of Phase 2)",
+]
