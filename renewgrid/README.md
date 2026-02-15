@@ -97,6 +97,17 @@ Outputs:
 - reports: `reports/phase1/*_demand_mw_avg_report.json` and `.md`
 - when optional RARE columns are available, additional reports are produced for `solar_gen`/`wind_gen` (or `solar_cf`/`wind_cf`)
 
+Bounded evaluation strategy (for responsive UI):
+- Phase 1 backtests evaluate only a recent rolling window (`backtest_window_days`, default 90).
+- Split points are capped (`max_splits`, default 20) and spread across that window.
+- Prophet/XGBoost refit periodically (`refit_every`, default 7) instead of every split.
+- This preserves comparable metrics while keeping Streamlit runs fast for non-expert workflows.
+
+Phase 1 stabilization updates:
+- `rolling_origin_evaluate()` now supports optional bounded controls (`max_splits`, `backtest_window_days`, `refit_every`) used by the UI.
+- Story chart rendering is Plotly-only (dual-axis, normalized, single-series) with cleaner layout and no duplicate grid artifacts.
+- Dependencies now explicitly include `plotly` and `pydeck` (map remains graceful if `pydeck` is unavailable).
+
 ## Config
 
 Environment variables:

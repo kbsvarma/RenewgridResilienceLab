@@ -84,14 +84,24 @@ def generate_findings(
                     f"Demand-temperature correlation is {corr:.2f} (weak) based on {n_overlap} "
                     "overlapping days; hourly or lag effects may differ."
                 )
-            elif corr <= -0.30:
+            elif abs(corr) < 0.60:
+                direction = (
+                    "colder days tended to coincide with higher demand"
+                    if corr < 0
+                    else "warmer days tended to coincide with higher demand"
+                )
                 findings.append(
-                    f"Demand-temperature correlation is {corr:.2f} based on {n_overlap} "
+                    f"Demand-temperature correlation is {corr:.2f} (moderate) based on "
+                    f"{n_overlap} overlapping days: {direction}."
+                )
+            elif corr <= -0.60:
+                findings.append(
+                    f"Demand-temperature correlation is {corr:.2f} (strong) based on {n_overlap} "
                     "overlapping days: colder days tended to coincide with higher demand."
                 )
             else:
                 findings.append(
-                    f"Demand-temperature correlation is {corr:.2f} based on {n_overlap} "
+                    f"Demand-temperature correlation is {corr:.2f} (strong) based on {n_overlap} "
                     "overlapping days: warmer days tended to coincide with higher demand."
                 )
 

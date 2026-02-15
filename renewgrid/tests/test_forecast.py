@@ -134,6 +134,42 @@ def test_bounded_evaluation_caps_splits_and_models(monkeypatch: pytest.MonkeyPat
     assert pd.api.types.is_numeric_dtype(summary["skill_vs_persistence"])
 
 
+def test_evaluate_accepts_optional_bounds_with_recent_split_preference() -> None:
+    """Optional bounds should be accepted and max_splits should keep the most recent splits."""
+    frame = pd.DataFrame(
+        {
+            "date": pd.date_range("2024-01-01", periods=90, freq="D"),
+            "demand_mw_avg": np.linspace(100.0, 190.0, 90),
+            "lag1": pd.Series(np.linspace(100.0, 190.0, 90)).shift(1),
+        }
+    )
+    evaluation_full = rolling_origin_evaluate(
+        frame=frame,
+        target_col="demand_mw_avg",
+        feature_cols=["lag1"],
+        horizons=(1, 2, 3),
+        min_train_size=20,
+        max_splits=None,
+        backtest_window_days=None,
+        models=("persistence",),
+    )
+    evaluation_capped = rolling_origin_evaluate(
+        frame=frame,
+        target_col="demand_mw_avg",
+        feature_cols=["lag1"],
+        horizons=(1, 2, 3),
+        min_train_size=20,
+        max_splits=5,
+        backtest_window_days=30,
+        models=("persistence",),
+    )
+    preds_full = evaluation_full["predictions"]
+    preds_capped = evaluation_capped["predictions"]
+    assert len(preds_capped) <= 5 * 3
+    assert preds_capped["date"].max() >= preds_full["date"].quantile(0.8)
+    assert "skill_vs_persistence" in evaluation_capped["summary"].columns
+
+
 def test_phase1_runs_optional_targets_when_available(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

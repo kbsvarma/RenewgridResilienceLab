@@ -38,19 +38,6 @@ def _load_region_geojson(base_dir: str) -> dict[str, object]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def _qualitative_label(value: float, series: pd.Series) -> str:
-    non_null = series.dropna()
-    if non_null.empty:
-        return "Normal"
-    p33 = float(non_null.quantile(0.33))
-    p67 = float(non_null.quantile(0.67))
-    if value < p33:
-        return "Low"
-    if value > p67:
-        return "High"
-    return "Normal"
-
-
 def _status_from_latest(series: pd.Series) -> str:
     clean = series.dropna()
     if clean.empty:
@@ -66,7 +53,7 @@ def _status_from_latest(series: pd.Series) -> str:
 
 
 def _anomaly_fill_color(anomaly: float, scale: float) -> list[int]:
-    """Map demand anomaly to a diverging blue-neutral-red fill color."""
+    """Map anomaly to diverging blue-neutral-red fill color."""
     if scale <= 0:
         return [160, 160, 160, 110]
     ratio = max(-1.0, min(1.0, anomaly / scale))
@@ -112,7 +99,7 @@ def render_monitor_map(
 
     features = _load_region_geojson(str(base_dir)).get("features", [])
     regions_df: list[dict[str, object]] = []
-    demand_anomalies: list[float] = []
+    overlay_anomalies: list[float] = []
     for feature in features:
         props = feature.get("properties", {})
         region = str(props.get("name", props.get("region", ""))).upper()
@@ -122,13 +109,10 @@ def render_monitor_map(
         series = region_frame[col_name].dropna()
         if series.empty:
             continue
-        demand_series = region_frame["demand_mw_avg"].dropna() if "demand_mw_avg" in region_frame.columns else pd.Series(dtype=float)
-        demand_mean = float(demand_series.mean()) if not demand_series.empty else 0.0
-        demand_latest = float(demand_series.iloc[-1]) if not demand_series.empty else 0.0
-        demand_anomaly = demand_latest - demand_mean
-        demand_anomalies.append(demand_anomaly)
         latest_value = float(series.iloc[-1])
         mean_value = float(series.mean())
+        overlay_anomaly = latest_value - mean_value
+        overlay_anomalies.append(overlay_anomaly)
         label_upper = _status_from_latest(series)
         overlay_value = mean_value
         source_name = (
@@ -147,14 +131,13 @@ def render_monitor_map(
                 "label": label_upper,
                 "mean_value": mean_value,
                 "latest_value": latest_value,
-                "demand_mean": demand_mean,
-                "demand_latest": demand_latest,
-                "demand_anomaly": demand_anomaly,
+                "overlay_anomaly": overlay_anomaly,
                 "source": source_name,
                 "tooltip": (
-                    f"{region} - {overlay} is {label_upper} vs this window's normal\n"
+                    f"{overlay} is {label_upper} vs this window's normal\n"
+                    f"Region: {region}\n"
                     f"Mean: {mean_value:,.2f} {unit} | Latest: {latest_value:,.2f} {unit}\n"
-                    f"Demand anomaly: {demand_anomaly:+,.2f} MW\n"
+                    f"Anomaly: {overlay_anomaly:+,.2f} {unit}\n"
                     f"Source: {source_name}"
                 ),
                 "geometry": feature.get("geometry"),
@@ -165,9 +148,9 @@ def render_monitor_map(
         st.warning("Selected overlay is unavailable in current datasets.")
         return
 
-    anomaly_scale = max((abs(v) for v in demand_anomalies), default=1.0)
+    anomaly_scale = max((abs(v) for v in overlay_anomalies), default=1.0)
     for row in regions_df:
-        row["fill_color"] = _anomaly_fill_color(float(row["demand_anomaly"]), anomaly_scale)
+        row["fill_color"] = _anomaly_fill_color(float(row["overlay_anomaly"]), anomaly_scale)
     marker_df = pd.DataFrame(regions_df)
     if "region" in st.session_state:
         default_region = st.session_state["region"]
@@ -182,6 +165,10 @@ def render_monitor_map(
         key=f"{key_prefix}_region",
     )
     st.session_state["region"] = selected_region
+    for row in regions_df:
+        selected = row["region"] == selected_region
+        row["line_width"] = 4 if selected else 2
+        row["line_color"] = [255, 244, 214, 255] if selected else [43, 89, 71, 210]
 
     polygon_layer = pdk.Layer(
         "GeoJsonLayer",
@@ -200,8 +187,9 @@ def render_monitor_map(
         stroked=True,
         filled=True,
         get_fill_color="fill_color",
-        get_line_color="[43, 89, 71, 210]",
-        line_width_min_pixels=2,
+        get_line_color="line_color",
+        get_line_width="line_width",
+        line_width_min_pixels=1,
     )
     marker_layer = pdk.Layer(
         "ScatterplotLayer",

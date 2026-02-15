@@ -1,8 +1,7 @@
-"""Story chart component with scale modes and plain-language summaries."""
+"""Story chart component with clean Plotly rendering for Phase 1."""
 
 from __future__ import annotations
 
-import altair as alt
 import pandas as pd
 import streamlit as st
 from plotly import graph_objects as go
@@ -18,79 +17,92 @@ SERIES_OPTIONS: dict[str, tuple[str, str]] = {
 }
 
 
-def _normalized(series: pd.Series) -> pd.Series:
-    span = float(series.max() - series.min())
-    if span <= 0:
-        return pd.Series([50.0] * len(series), index=series.index)
-    return ((series - series.min()) / span) * 100.0
-
-
-def compute_axis_range(series: pd.Series, include_zero: bool) -> tuple[float, float]:
-    """Compute a stable y-axis range using controlled padding."""
+def padded_range(series: pd.Series, pad_ratio: float = 0.08) -> tuple[float, float]:
+    """Return min/max range padded around data to avoid edge clipping."""
     clean = pd.to_numeric(series, errors="coerce").dropna()
     if clean.empty:
         return (0.0, 1.0)
-    data_min = float(clean.min())
-    data_max = float(clean.max())
-    data_range = data_max - data_min
-    pad = max(data_range * 0.03, data_range * 0.02)
-    if data_range <= 0:
-        pad = 1.0
+    min_v = float(clean.min())
+    max_v = float(clean.max())
+    span = max_v - min_v
+    pad = span * pad_ratio if span > 0 else 1.0
+    return (min_v - pad, max_v + pad)
+
+
+def compute_axis_range(series: pd.Series, include_zero: bool) -> tuple[float, float]:
+    """Backward-compatible axis helper with optional zero baseline inclusion."""
+    lower, upper = padded_range(series)
     if include_zero:
-        return (0.0, data_max + pad)
-    return (data_min - pad, data_max + pad)
+        return (0.0, upper)
+    return (lower, upper)
+
+
+def _normalized(series: pd.Series) -> pd.Series:
+    clean = pd.to_numeric(series, errors="coerce")
+    min_v = clean.min()
+    max_v = clean.max()
+    span = float(max_v - min_v)
+    if pd.isna(span) or span <= 0:
+        return pd.Series([50.0] * len(series), index=series.index, dtype=float)
+    return ((clean - min_v) / span) * 100.0
 
 
 def _series_units(selected_series: list[str]) -> str:
-    pairs = [f"{label}: {SERIES_OPTIONS[label][1]}" for label in selected_series if label in SERIES_OPTIONS]
-    return ", ".join(pairs)
+    return ", ".join(
+        f"{label}: {SERIES_OPTIONS[label][1]}" for label in selected_series if label in SERIES_OPTIONS
+    )
 
 
 def generate_chart_summary(
     region: str,
     start_date: object,
     end_date: object,
-    resolution: str,
     selected_series: list[str],
     sources: list[str],
-    chart_mode: str,
 ) -> str:
-    """Generate a short deterministic plain-English chart summary."""
-    series_text = ", ".join(selected_series)
-    units_text = _series_units(selected_series)
+    """Generate a short novice-friendly chart description."""
+    labels = ", ".join(selected_series)
+    units = _series_units(selected_series)
     return (
-        f"This chart shows {series_text} for {region} from {start_date} to {end_date}. "
-        f"Values are {resolution}. "
-        f"Data sources are {', '.join(sources)}, and units are {units_text} (mode: {chart_mode}). "
-        "This helps show how weather shifts can influence demand patterns and stress-relevant days."
+        f"What am I looking at? Daily (UTC-day) trends for {region} from {start_date} to {end_date}: "
+        f"{labels}. Units: {units}. Sources: {', '.join(sources)}."
     )
 
 
-def _analytical_sentence(
-    dataset: pd.DataFrame,
-    first_label: str,
-    second_label: str,
-) -> str:
-    if first_label not in SERIES_OPTIONS or second_label not in SERIES_OPTIONS:
-        return "Correlation not available (insufficient data)."
-    first_col = SERIES_OPTIONS[first_label][0]
-    second_col = SERIES_OPTIONS[second_label][0]
-    pair = dataset[[first_col, second_col]].dropna()
-    if len(pair) < 3:
-        return "Correlation not available (insufficient data)."
-    corr = float(pair[first_col].corr(pair[second_col]))
-    if pd.isna(corr):
-        return "Correlation not available (insufficient data)."
-    if corr > 0.2:
-        direction = "higher"
-    elif corr < -0.2:
-        direction = "lower"
-    else:
-        direction = "little change in"
-    return (
-        f"During this window, changes in {second_label} tended to align with {direction} "
-        f"{first_label} (correlation {corr:.2f})."
+def _prepare_daily_series(dataset: pd.DataFrame, col: str) -> pd.DataFrame:
+    data = (
+        dataset[["date", col]]
+        .dropna()
+        .assign(date=lambda d: pd.to_datetime(d["date"]))
+        .groupby("date", as_index=False)[col]
+        .mean()
+        .sort_values("date")
     )
+    return data
+
+
+def _x_tick_format(dates: pd.Series) -> str:
+    years = pd.to_datetime(dates).dt.year.nunique()
+    return "%b %d\n%Y" if years > 1 else "%b %d"
+
+
+def _base_layout(fig: go.Figure, dates: pd.Series) -> None:
+    nticks = max(6, min(10, len(dates) // 7 if len(dates) > 20 else len(dates)))
+    fig.update_xaxes(
+        showgrid=False,
+        showline=False,
+        mirror=False,
+        automargin=True,
+        nticks=nticks,
+        tickformat=_x_tick_format(dates),
+        title_text="Date",
+    )
+    fig.update_layout(
+        height=470,
+        margin=dict(l=70, r=70, t=35, b=65),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+    )
+    fig.update_traces(line=dict(width=2))
 
 
 def _render_plotly_dual_axis(
@@ -103,25 +115,10 @@ def _render_plotly_dual_axis(
     right_col, right_unit = SERIES_OPTIONS[right_label]
     left_axis_title = f"{left_label} ({left_unit})"
     right_axis_title = f"{right_label} ({right_unit})"
-    # Ensure one deterministic point per UTC day to avoid vertical spikes from duplicate dates.
-    left_data = (
-        dataset[["date", left_col]]
-        .dropna()
-        .assign(date=lambda d: pd.to_datetime(d["date"]))
-        .groupby("date", as_index=False)[left_col]
-        .mean()
-        .sort_values("date")
-    )
-    right_data = (
-        dataset[["date", right_col]]
-        .dropna()
-        .assign(date=lambda d: pd.to_datetime(d["date"]))
-        .groupby("date", as_index=False)[right_col]
-        .mean()
-        .sort_values("date")
-    )
+    left_data = _prepare_daily_series(dataset, left_col)
+    right_data = _prepare_daily_series(dataset, right_col)
     if left_data.empty or right_data.empty:
-        st.warning("No data available for the selected dual-axis series in this window.")
+        st.warning("No data available for selected series in this window.")
         return
 
     fig = make_subplots(specs=[[{"secondary_y": True}]])
@@ -147,36 +144,98 @@ def _render_plotly_dual_axis(
         ),
         secondary_y=True,
     )
-    y_rangemode = "tozero" if include_zero else "normal"
+
+    left_range = padded_range(left_data[left_col])
+    right_range = padded_range(right_data[right_col])
+    if include_zero:
+        left_range = (min(0.0, left_range[0]), left_range[1])
+        right_range = (min(0.0, right_range[0]), right_range[1])
+
     fig.update_yaxes(
         title_text=left_axis_title,
-        rangemode=y_rangemode,
+        range=list(left_range),
+        rangemode="tozero" if include_zero else "normal",
+        zeroline=False,
         showgrid=True,
         gridcolor="rgba(255,255,255,0.05)",
         gridwidth=1,
-        zeroline=False,
         secondary_y=False,
     )
     fig.update_yaxes(
         title_text=right_axis_title,
-        rangemode=y_rangemode,
+        range=list(right_range),
+        rangemode="tozero" if include_zero else "normal",
+        zeroline=False,
+        showgrid=False,
+        secondary_y=True,
+    )
+    _base_layout(fig, left_data["date"])
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def _render_plotly_single(dataset: pd.DataFrame, label: str) -> None:
+    col, unit = SERIES_OPTIONS[label]
+    data = _prepare_daily_series(dataset, col)
+    if data.empty:
+        st.warning("No data available for selected series in this window.")
+        return
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=data["date"],
+            y=data[col],
+            mode="lines",
+            name=f"{label} ({unit})",
+            line={"color": "#1565C0"},
+            cliponaxis=True,
+        )
+    )
+    fig.update_yaxes(
+        title_text=f"{label} ({unit})",
+        range=list(padded_range(data[col])),
+        rangemode="normal",
+        zeroline=False,
         showgrid=True,
         gridcolor="rgba(255,255,255,0.05)",
         gridwidth=1,
+    )
+    _base_layout(fig, data["date"])
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def _render_plotly_normalized(dataset: pd.DataFrame, labels: list[str]) -> None:
+    fig = go.Figure()
+    dates_ref: pd.Series | None = None
+    for label in labels:
+        col, unit = SERIES_OPTIONS[label]
+        data = _prepare_daily_series(dataset, col)
+        if data.empty:
+            continue
+        dates_ref = data["date"]
+        fig.add_trace(
+            go.Scatter(
+                x=data["date"],
+                y=_normalized(data[col]),
+                mode="lines",
+                name=f"{label} ({unit})",
+                cliponaxis=True,
+            )
+        )
+    if not fig.data:
+        st.warning("No non-missing data available for normalized comparison.")
+        return
+    fig.update_yaxes(
+        title_text="Normalized scale (0-100)",
+        range=[0, 100],
+        rangemode="normal",
         zeroline=False,
-        secondary_y=True,
+        showgrid=True,
+        gridcolor="rgba(255,255,255,0.05)",
+        gridwidth=1,
     )
-    fig.update_xaxes(showgrid=False, showline=False, mirror=False, title_text="Date")
-    fig.update_traces(line=dict(width=2))
-    fig.update_layout(
-        height=520,
-        margin=dict(l=80, r=80, t=40, b=70),
-        legend=dict(orientation="h", yanchor="bottom", y=1.08, xanchor="left", x=0),
-    )
-    try:
-        st.plotly_chart(fig, width="stretch")
-    except TypeError:
-        st.plotly_chart(fig, use_container_width=True)
+    _base_layout(fig, dates_ref if dates_ref is not None else pd.Series(dtype="datetime64[ns]"))
+    st.caption("Normalized for comparison only.")
+    st.plotly_chart(fig, use_container_width=True)
 
 
 def render_story_chart(
@@ -197,31 +256,30 @@ def render_story_chart(
         st.info("No story-chart variables available in this window.")
         return
 
-    default_selection = [
-        label for label in ("Demand (MW avg)", "Temperature (T2M)") if label in available
-    ]
     selected = st.multiselect(
         "Story chart variables",
         options=list(available.keys()),
-        default=default_selection or list(available.keys())[:1],
+        default=[l for l in ("Demand (MW avg)", "Temperature (T2M)") if l in available]
+        or [list(available.keys())[0]],
         key=f"{key_prefix}_variables",
     )
     if not selected:
         st.info("Select at least one variable to plot.")
         return
 
-    summary_mode = st.radio(
-        "Summary mode",
-        options=["Basic", "Analytical"],
-        index=0,
-        horizontal=True,
-        key=f"{key_prefix}_summary_mode",
+    st.caption(
+        generate_chart_summary(
+            region=region or "Selected region",
+            start_date=start_date or pd.to_datetime(dataset["date"]).min().date(),
+            end_date=end_date or pd.to_datetime(dataset["date"]).max().date(),
+            selected_series=selected,
+            sources=sources or ["EIA Open Data", "NASA POWER", "RARE (optional)"],
+        )
     )
 
     if len(selected) > 2:
         mode = "Normalized (0-100)"
-        st.caption("Multiple series: normalized view enabled for readability.")
-        st.caption("For 3+ series, Normalized view is usually clearer.")
+        st.caption("For 3+ series, normalized mode is usually clearer.")
     elif len(selected) > 1:
         mode = st.radio(
             "Chart mode",
@@ -231,98 +289,35 @@ def render_story_chart(
             key=f"{key_prefix}_mode_multi",
         )
     else:
-        mode = st.radio(
-            "Chart mode",
-            options=["Single series", "Normalized (0-100)"],
-            index=0,
-            horizontal=True,
-            key=f"{key_prefix}_mode_single",
-        )
+        mode = "Single series"
 
+    include_zero = False
     if mode == "Dual axis":
-        scale = st.radio(
-            "Scale",
-            options=["Fit to data (recommended)", "Include zero baseline"],
-            index=0,
-            horizontal=True,
-            key=f"{key_prefix}_scale_mode",
+        include_zero = (
+            st.radio(
+                "Scale",
+                options=["Fit to data (recommended)", "Include zero baseline"],
+                index=0,
+                horizontal=True,
+                key=f"{key_prefix}_scale_mode",
+            )
+            == "Include zero baseline"
         )
-        include_zero = scale == "Include zero baseline"
-    else:
-        include_zero = False
-
-    chart_summary = generate_chart_summary(
-        region=region or "Selected region",
-        start_date=start_date or pd.to_datetime(dataset["date"]).min().date(),
-        end_date=end_date or pd.to_datetime(dataset["date"]).max().date(),
-        resolution="daily averages (UTC day)",
-        selected_series=selected,
-        sources=sources or ["EIA Open Data", "NASA POWER", "RARE (optional)"],
-        chart_mode=mode,
-    )
-    if summary_mode == "Analytical" and len(selected) >= 2:
-        chart_summary = f"{chart_summary} {_analytical_sentence(dataset, selected[0], selected[1])}"
-    elif summary_mode == "Analytical":
-        chart_summary = f"{chart_summary} Correlation not available (insufficient data)."
-    st.info(chart_summary)
 
     if mode == "Single series":
-        label = st.selectbox(
-            "Series",
-            options=selected,
-            key=f"{key_prefix}_single_series",
-        )
-        col, unit = available[label]
-        series = dataset[["date", col]].dropna()
-        if series.empty:
-            st.warning("No data available for selected series in this window.")
-            return
-        st.caption(f"Units: {unit}")
-        st.line_chart(series.set_index("date")[[col]])
+        label = st.selectbox("Series", options=selected, key=f"{key_prefix}_single_series")
+        _render_plotly_single(dataset, label)
     elif mode == "Dual axis":
-        if len(selected) < 2:
-            st.info("Dual axis requires at least two selected series.")
-            return
         left_label = "Demand (MW avg)" if "Demand (MW avg)" in selected else selected[0]
-        right_candidates = [s for s in selected if s != left_label]
-        right_label = right_candidates[0]
-        left_axis = f"{left_label} ({available[left_label][1]})"
-        right_axis = f"{right_label} ({available[right_label][1]})"
-        st.caption(f"Left axis: {left_axis} | Right axis: {right_axis}")
+        right_label = next(s for s in selected if s != left_label)
+        st.caption(
+            "Left axis: "
+            f"{left_label} ({available[left_label][1]}) | Right axis: "
+            f"{right_label} ({available[right_label][1]})"
+        )
         _render_plotly_dual_axis(dataset, left_label, right_label, include_zero=include_zero)
     else:
-        long_frames: list[pd.DataFrame] = []
-        for label in selected:
-            col, unit = available[label]
-            series = dataset[["date", col]].dropna()
-            if series.empty:
-                continue
-            norm = _normalized(series[col])
-            long_frames.append(
-                pd.DataFrame(
-                    {
-                        "date": series["date"],
-                        "value": norm,
-                        "series": f"{label} ({unit})",
-                    }
-                )
-            )
-        if not long_frames:
-            st.warning("No non-missing data available for normalized comparison.")
-            return
-        norm_frame = pd.concat(long_frames, ignore_index=True)
-        st.caption("Normalized for comparison only.")
-        chart = (
-            alt.Chart(norm_frame)
-            .mark_line()
-            .encode(
-                x=alt.X("date:T", title="Date"),
-                y=alt.Y("value:Q", title="Normalized scale (0-100)"),
-                color=alt.Color("series:N", title="Series"),
-                tooltip=["date:T", "series:N", alt.Tooltip("value:Q", format=".1f")],
-            )
-        )
-        st.altair_chart(chart, use_container_width=True)
+        _render_plotly_normalized(dataset, selected)
 
     findings = generate_findings(
         df=dataset,
@@ -334,4 +329,4 @@ def render_story_chart(
     st.subheader("What this window suggests")
     for bullet in findings:
         st.markdown(f"- {bullet}")
-    st.caption("These bullets summarize patterns in the selected window (descriptive only, not a forecast).")
+    st.caption("Descriptive summary of the selected window (not a forecast).")

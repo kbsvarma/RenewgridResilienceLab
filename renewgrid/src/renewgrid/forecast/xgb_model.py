@@ -14,12 +14,8 @@ def xgboost_is_available() -> bool:
     return True
 
 
-def predict_with_xgb(
-    train_features: pd.DataFrame,
-    train_target: pd.Series,
-    predict_features: pd.DataFrame,
-) -> pd.Series:
-    """Fit XGBoost regressor and predict values for predict_features."""
+def fit_xgb(train_features: pd.DataFrame, train_target: pd.Series) -> object:
+    """Fit XGBoost regressor on provided training set."""
     if not xgboost_is_available():
         raise RuntimeError("xgboost package is not installed.")
 
@@ -35,5 +31,20 @@ def predict_with_xgb(
         objective="reg:squarederror",
     )
     model.fit(train_features, train_target)
+    return model
+
+
+def predict_xgb(model: object, predict_features: pd.DataFrame) -> pd.Series:
+    """Predict values with a fitted XGBoost model."""
     preds = model.predict(predict_features)
     return pd.Series(preds, index=predict_features.index, dtype=float)
+
+
+def predict_with_xgb(
+    train_features: pd.DataFrame,
+    train_target: pd.Series,
+    predict_features: pd.DataFrame,
+) -> pd.Series:
+    """Fit XGBoost regressor and predict values for predict_features."""
+    model = fit_xgb(train_features, train_target)
+    return predict_xgb(model, predict_features)
