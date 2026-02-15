@@ -75,19 +75,42 @@ def _evaluate(
 
 def _render_answer_cards(dataset: pd.DataFrame, summary: pd.DataFrame | None) -> None:
     c1, c2, c3, c4 = st.columns(4)
-    avg_demand = float(dataset["demand_mw_avg"].mean())
-    c1.metric("Avg Demand (MW)", f"{avg_demand:,.1f}")
-    c1.caption("Average daily power demand for selected window.")
+    demand_series = (
+        dataset["demand_mw_avg"].dropna() if "demand_mw_avg" in dataset.columns else pd.Series()
+    )
+    if not demand_series.empty:
+        avg_demand = float(demand_series.mean())
+        c1.metric("Avg Demand (MW)", f"{avg_demand:,.1f}")
+        c1.caption("Average daily power demand for selected window.")
+    else:
+        c1.metric("Avg Demand (MW)", "N/A")
+        c1.caption("No data available in this window.")
 
     t_col = "weather_t2m" if "weather_t2m" in dataset.columns else None
     w_col = "weather_ws10m" if "weather_ws10m" in dataset.columns else None
-    temp_text = f"{dataset[t_col].mean():.1f} / {dataset[t_col].max():.1f}" if t_col else "N/A"
-    wind_text = f"{dataset[w_col].mean():.1f} / {dataset[w_col].min():.1f}" if w_col else "N/A"
+    if t_col:
+        temp_series = dataset[t_col].dropna()
+        temp_text = (
+            f"{temp_series.mean():.1f} / {temp_series.max():.1f}" if not temp_series.empty else "N/A"
+        )
+    else:
+        temp_text = "N/A"
+    if w_col:
+        wind_series = dataset[w_col].dropna()
+        wind_text = (
+            f"{wind_series.mean():.1f} / {wind_series.min():.1f}" if not wind_series.empty else "N/A"
+        )
+    else:
+        wind_text = "N/A"
 
     c2.metric("Temp Avg / Max", temp_text)
-    c2.caption("Daily near-surface temperature summary.")
+    c2.caption(
+        "Daily near-surface temperature summary."
+        if temp_text != "N/A"
+        else "No data available in this window."
+    )
     c3.metric("Wind Avg / Min", wind_text)
-    c3.caption("Daily wind speed summary.")
+    c3.caption("Daily wind speed summary." if wind_text != "N/A" else "No data available in this window.")
 
     if summary is not None and not summary.empty and "skill_vs_persistence" in summary.columns:
         model_rows = summary[summary["model"] != "persistence"]
