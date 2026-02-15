@@ -7,10 +7,19 @@ Reproducible Python 3.11 project for renewable-grid resilience experiments. This
 ```bash
 cd renewgrid
 uv sync --extra dev
+uv run python -c "import pyarrow; print(pyarrow.__version__)"
 cp .env.example .env
 ```
 
-If `uv` is not installed, the `Makefile` falls back to system `python` and CLI tools.
+Alternate setup without `uv`:
+
+```bash
+cd renewgrid
+pip install -e .[dev]
+cp .env.example .env
+```
+
+If `uv` is not installed, the `Makefile` falls back to system `python` and CLI tools. `make pipeline` runs a preflight check and prints whether `pyarrow` is available.
 
 ## Commands
 
