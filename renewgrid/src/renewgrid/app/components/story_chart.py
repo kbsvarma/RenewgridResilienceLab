@@ -7,6 +7,8 @@ import pandas as pd
 import streamlit as st
 from plotly import graph_objects as go
 
+from renewgrid.app.components.story_findings import generate_findings
+
 SERIES_OPTIONS: dict[str, tuple[str, str]] = {
     "Demand (MW avg)": ("demand_mw_avg", "MW"),
     "Temperature (T2M)": ("weather_t2m", "°C"),
@@ -252,9 +254,7 @@ def render_story_chart(
             return
         st.caption(f"Units: {unit}")
         st.line_chart(series.set_index("date")[[col]])
-        return
-
-    if mode == "Dual axis":
+    elif mode == "Dual axis":
         if len(selected) < 2:
             st.info("Dual axis requires at least two selected series.")
             return
@@ -265,37 +265,48 @@ def render_story_chart(
         right_axis = f"{right_label} ({available[right_label][1]})"
         st.caption(f"Left axis: {left_axis} | Right axis: {right_axis}")
         _render_plotly_dual_axis(dataset, left_label, right_label, include_zero=include_zero)
-        return
-
-    long_frames: list[pd.DataFrame] = []
-    for label in selected:
-        col, unit = available[label]
-        series = dataset[["date", col]].dropna()
-        if series.empty:
-            continue
-        norm = _normalized(series[col])
-        long_frames.append(
-            pd.DataFrame(
-                {
-                    "date": series["date"],
-                    "value": norm,
-                    "series": f"{label} ({unit})",
-                }
+    else:
+        long_frames: list[pd.DataFrame] = []
+        for label in selected:
+            col, unit = available[label]
+            series = dataset[["date", col]].dropna()
+            if series.empty:
+                continue
+            norm = _normalized(series[col])
+            long_frames.append(
+                pd.DataFrame(
+                    {
+                        "date": series["date"],
+                        "value": norm,
+                        "series": f"{label} ({unit})",
+                    }
+                )
+            )
+        if not long_frames:
+            st.warning("No non-missing data available for normalized comparison.")
+            return
+        norm_frame = pd.concat(long_frames, ignore_index=True)
+        st.caption("Normalized for comparison only.")
+        chart = (
+            alt.Chart(norm_frame)
+            .mark_line()
+            .encode(
+                x=alt.X("date:T", title="Date"),
+                y=alt.Y("value:Q", title="Normalized scale (0-100)"),
+                color=alt.Color("series:N", title="Series"),
+                tooltip=["date:T", "series:N", alt.Tooltip("value:Q", format=".1f")],
             )
         )
-    if not long_frames:
-        st.warning("No non-missing data available for normalized comparison.")
-        return
-    norm_frame = pd.concat(long_frames, ignore_index=True)
-    st.caption("Normalized for comparison only.")
-    chart = (
-        alt.Chart(norm_frame)
-        .mark_line()
-        .encode(
-            x=alt.X("date:T", title="Date"),
-            y=alt.Y("value:Q", title="Normalized scale (0-100)"),
-            color=alt.Color("series:N", title="Series"),
-            tooltip=["date:T", "series:N", alt.Tooltip("value:Q", format=".1f")],
-        )
+        st.altair_chart(chart, use_container_width=True)
+
+    findings = generate_findings(
+        df=dataset,
+        selected_series=selected,
+        region=region or "Selected region",
+        start_date=start_date or pd.to_datetime(dataset["date"]).min().date(),
+        end_date=end_date or pd.to_datetime(dataset["date"]).max().date(),
     )
-    st.altair_chart(chart, use_container_width=True)
+    st.subheader("What this window suggests")
+    for bullet in findings:
+        st.markdown(f"- {bullet}")
+    st.caption("These bullets are descriptive summaries of the selected window (not a forecast).")
