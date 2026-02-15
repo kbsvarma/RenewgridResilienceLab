@@ -1,4 +1,4 @@
-"""Resilience curve utilities."""
+"""Phase 3 module (not used in Phase 2). Do not import from Phase 2 UI."""
 
 from __future__ import annotations
 

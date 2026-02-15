@@ -35,5 +35,6 @@ def generate_stress_findings(
             f"Battery reduced unserved energy by "
             f"{float(metrics.get('unserved_reduction_pct', 0.0)):.1f}% versus no-battery baseline."
         ),
+        "This is a stress test for planning insight (not a real-time operator model).",
     ]
     return findings

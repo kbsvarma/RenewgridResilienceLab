@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import pandas as pd
+import pytest
 
 from renewgrid.supply.proxy import ProxySupplyModel
+
+pytestmark = pytest.mark.phase2
 
 
 def test_proxy_supply_non_negative_and_bounded() -> None:

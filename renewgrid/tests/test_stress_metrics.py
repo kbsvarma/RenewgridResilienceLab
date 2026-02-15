@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import pandas as pd
+import pytest
 
 from renewgrid.metrics.stress_metrics import compute_stress_metrics
+
+pytestmark = pytest.mark.phase2
 
 
 def test_stress_metrics_deficit_streak_and_unserved() -> None:

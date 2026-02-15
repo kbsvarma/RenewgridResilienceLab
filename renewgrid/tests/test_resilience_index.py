@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import pandas as pd
+import pytest
 
 from renewgrid.metrics.curves import cumulative_unserved
 from renewgrid.metrics.resilience_index import energy_served_ratio
+
+pytestmark = pytest.mark.phase3
 
 
 def test_energy_served_ratio() -> None:

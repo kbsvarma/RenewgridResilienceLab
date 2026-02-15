@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import pandas as pd
+import pytest
 
 from renewgrid.stress.runner import StressResult, run_stress_test
+
+pytestmark = pytest.mark.phase2
 
 
 def test_runner_returns_stress_result_with_expected_keys() -> None:

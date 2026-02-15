@@ -20,7 +20,7 @@ from renewgrid.app.pages.monitor_map import render_monitor_map
 from renewgrid.app.pages.stress_test import render_stress_test
 from renewgrid.app.snapshots import save_snapshot
 from renewgrid.app.state import RunConfig
-from renewgrid.config import load_environment
+from renewgrid.config import PHASE_3_ENABLED, load_environment
 from renewgrid.data.merge import build_daily_dataset
 from renewgrid.features.build_features import build_feature_frame
 from renewgrid.forecast.evaluate import rolling_origin_evaluate
@@ -416,14 +416,18 @@ def main() -> None:
     if mode:
         _render_guided(base_dir)
     else:
-        tabs = st.tabs([
+        tab_labels = [
             "Guided Run",
             "Monitor Map",
             "Data Explorer",
             "Forecast Lab",
             "Stress Test",
             "Compare Runs",
-        ])
+        ]
+        if PHASE_3_ENABLED:
+            tab_labels.append("Phase 3")
+
+        tabs = st.tabs(tab_labels)
         with tabs[0]:
             _render_guided(base_dir)
         with tabs[1]:
@@ -436,6 +440,9 @@ def main() -> None:
             render_stress_test(base_dir)
         with tabs[5]:
             render_compare_runs(str(base_dir))
+        if PHASE_3_ENABLED:
+            with tabs[6]:
+                st.warning("Phase 3 is disabled by default in Phase 2 runtime.")
 
 
 if __name__ == "__main__":

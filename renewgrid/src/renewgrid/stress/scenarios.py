@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import numpy as np
 import pandas as pd
 
 
@@ -87,12 +88,14 @@ def _wind_drought_window_mask(
 
     ws = pd.to_numeric(frame[wind_col], errors="coerce")
     rolling = ws.rolling(window=days, min_periods=days).mean()
-    if rolling.dropna().empty:
+    rolling_vals = rolling.to_numpy(dtype=float)
+    valid_positions = np.where(~np.isnan(rolling_vals))[0]
+    if len(valid_positions) == 0:
         return pd.Series([False] * len(frame), index=frame.index)
 
-    end_idx = int(rolling.idxmin())
-    start_idx = max(0, end_idx - days + 1)
-    end_idx = start_idx + days
+    min_pos = int(valid_positions[np.argmin(rolling_vals[valid_positions])])
+    start_idx = max(0, min_pos - days + 1)
+    end_idx = min(len(frame), start_idx + days)
     mask = pd.Series([False] * len(frame), index=frame.index)
     mask.iloc[start_idx:end_idx] = True
     return mask

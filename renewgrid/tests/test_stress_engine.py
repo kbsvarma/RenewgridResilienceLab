@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import pandas as pd
+import pytest
 
 from renewgrid.stress.stress_engine import apply_outage
+
+pytestmark = pytest.mark.phase3
 
 
 def test_apply_outage_reduces_served_and_updates_unserved() -> None:

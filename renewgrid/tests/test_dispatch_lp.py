@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import pandas as pd
+import pytest
 
 from renewgrid.opt.dispatch_lp import greedy_dispatch
+
+pytestmark = pytest.mark.phase3
 
 
 def test_greedy_dispatch_tracks_unserved() -> None:

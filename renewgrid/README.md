@@ -129,6 +129,11 @@ Stress metrics:
 Notes:
 - This is a planning insight tool at daily resolution, not an operator dispatch model.
 - Scenario transforms, proxy supply, battery simulation, and findings are deterministic/reproducible.
+- Phase 3 scoring/sizing modules are intentionally not enabled in the Phase 2 UI/runtime path.
+
+Phase-2-focused test commands:
+- `pytest -q -m phase2`
+- `pytest -q -m "not phase3"`
 
 ## Config
 

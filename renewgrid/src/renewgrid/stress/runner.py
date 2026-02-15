@@ -117,6 +117,7 @@ def run_stress_test(
         "supply_config": supply_cfg,
         "battery_config": batt_cfg,
         "warnings": warnings,
+        "region": str(timeseries["region"].iloc[0]) if "region" in timeseries.columns else None,
         "start_date": str(timeseries["date"].min().date()),
         "end_date": str(timeseries["date"].max().date()),
     }

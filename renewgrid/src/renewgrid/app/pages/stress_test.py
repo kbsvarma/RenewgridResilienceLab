@@ -144,6 +144,10 @@ def render_stress_test(base_dir: Path) -> None:
     c1.metric("Deficit days", int(result.metrics.get("deficit_days", 0)))
     c2.metric("Unserved energy (MWh)", f"{float(result.metrics.get('total_unserved_mwh', 0.0)):,.0f}")
     c3.metric("Peak deficit (MW)", f"{float(result.metrics.get('peak_unserved_mw', 0.0)):,.0f}")
+    st.caption(
+        "Deficit days are days when renewables + battery could not fully meet demand "
+        "under this scenario."
+    )
 
     render_stress_charts(result.timeseries)
 
@@ -161,6 +165,14 @@ def render_stress_test(base_dir: Path) -> None:
     metrics_payload = {
         "scenario_id": result.scenario_id,
         "scenario_name": result.scenario_name,
+        "region": region,
+        "date_window": {
+            "start_date": str(start_date),
+            "end_date": str(end_date),
+        },
+        "scenario_params": result.metadata.get("scenario", {}),
+        "battery_config": result.metadata.get("battery_config", {}),
+        "supply_config": result.metadata.get("supply_config", {}),
         "metadata": result.metadata,
         "metrics": result.metrics,
         "findings": result.findings,

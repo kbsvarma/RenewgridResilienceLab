@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import pandas as pd
+import pytest
 
 from renewgrid.dispatch.battery import simulate_battery_dispatch
+
+pytestmark = pytest.mark.phase2
 
 
 def test_battery_soc_bounds_and_zero_battery_no_discharge() -> None:
