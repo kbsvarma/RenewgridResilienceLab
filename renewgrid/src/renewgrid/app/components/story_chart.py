@@ -6,6 +6,7 @@ import altair as alt
 import pandas as pd
 import streamlit as st
 from plotly import graph_objects as go
+from plotly.subplots import make_subplots
 
 from renewgrid.app.components.story_findings import generate_findings
 
@@ -25,16 +26,19 @@ def _normalized(series: pd.Series) -> pd.Series:
 
 
 def compute_axis_range(series: pd.Series, include_zero: bool) -> tuple[float, float]:
-    """Compute a stable y-axis range from non-missing values with padding."""
+    """Compute a stable y-axis range using controlled padding."""
     clean = pd.to_numeric(series, errors="coerce").dropna()
     if clean.empty:
         return (0.0, 1.0)
-    min_val = float(clean.min())
-    max_val = float(clean.max())
-    pad = 0.05 * (max_val - min_val) if max_val > min_val else 1.0
+    data_min = float(clean.min())
+    data_max = float(clean.max())
+    data_range = data_max - data_min
+    pad = max(data_range * 0.03, data_range * 0.02)
+    if data_range <= 0:
+        pad = 1.0
     if include_zero:
-        return (0.0, max_val + pad)
-    return (min_val - pad, max_val + pad)
+        return (0.0, data_max + pad)
+    return (data_min - pad, data_max + pad)
 
 
 def _series_units(selected_series: list[str]) -> str:
@@ -108,7 +112,7 @@ def _render_plotly_dual_axis(
     left_range = compute_axis_range(left_data[left_col], include_zero=include_zero)
     right_range = compute_axis_range(right_data[right_col], include_zero=include_zero)
 
-    fig = go.Figure()
+    fig = make_subplots(specs=[[{"secondary_y": True}]])
     fig.add_trace(
         go.Scatter(
             x=left_data["date"],
@@ -116,8 +120,10 @@ def _render_plotly_dual_axis(
             mode="lines",
             name=left_axis_title,
             line={"color": "#1565C0"},
-            yaxis="y1",
+            cliponaxis=True,
         )
+        ,
+        secondary_y=False,
     )
     fig.add_trace(
         go.Scatter(
@@ -126,27 +132,37 @@ def _render_plotly_dual_axis(
             mode="lines",
             name=right_axis_title,
             line={"color": "#EF6C00"},
-            yaxis="y2",
+            cliponaxis=True,
         )
+        ,
+        secondary_y=True,
     )
+    fig.update_yaxes(range=list(left_range), secondary_y=False, title_text=left_axis_title)
+    fig.update_yaxes(range=list(right_range), secondary_y=True, title_text=right_axis_title)
+    fig.update_yaxes(
+        showgrid=True,
+        gridcolor="rgba(255,255,255,0.06)",
+        gridwidth=1,
+        zeroline=False,
+        nticks=6,
+        secondary_y=False,
+    )
+    fig.update_yaxes(
+        showgrid=True,
+        gridcolor="rgba(255,255,255,0.06)",
+        gridwidth=1,
+        zeroline=False,
+        nticks=6,
+        secondary_y=True,
+    )
+    fig.update_xaxes(showgrid=False, title_text="Date")
+    fig.update_traces(line=dict(width=2))
     fig.update_layout(
-        autosize=True,
-        height=480,
-        margin=dict(l=60, r=60, t=45, b=55),
+        yaxis_autorange=False,
+        yaxis2_autorange=False,
+        height=520,
+        margin=dict(l=70, r=70, t=40, b=70),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
-        xaxis=dict(title="Date"),
-        yaxis=dict(
-            title=left_axis_title,
-            range=list(left_range),
-            rangemode="tozero" if include_zero else "normal",
-        ),
-        yaxis2=dict(
-            title=right_axis_title,
-            range=list(right_range),
-            rangemode="tozero" if include_zero else "normal",
-            overlaying="y",
-            side="right",
-        ),
     )
     try:
         st.plotly_chart(fig, width="stretch")
@@ -309,4 +325,4 @@ def render_story_chart(
     st.subheader("What this window suggests")
     for bullet in findings:
         st.markdown(f"- {bullet}")
-    st.caption("These bullets are descriptive summaries of the selected window (not a forecast).")
+    st.caption("These bullets summarize patterns in the selected window (descriptive only, not a forecast).")
