@@ -10,6 +10,7 @@ from pathlib import Path
 import pandas as pd
 
 from renewgrid.app.state import RunConfig
+from renewgrid.utils.parquet import require_parquet_engine
 
 
 def _serialize_eval(eval_results: dict[str, object]) -> dict[str, object]:
@@ -56,6 +57,7 @@ def save_snapshot(
 
     files = [config_path.name, summary_path.name, eval_path.name]
     if isinstance(key_series, pd.DataFrame) and not key_series.empty:
+        require_parquet_engine()
         series_path = run_dir / "key_series.parquet"
         key_series.to_parquet(series_path, index=False)
         files.append(series_path.name)

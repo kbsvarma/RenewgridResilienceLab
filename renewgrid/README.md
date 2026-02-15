@@ -2,6 +2,11 @@
 
 Reproducible Python 3.11 project for renewable-grid resilience experiments. This phase includes a "hello pipeline" using NASA POWER and EIA.
 
+## Dependencies
+
+- `pyarrow` is required for parquet snapshots, dataset artifacts, and parquet-backed tests.
+- RenewGrid raises a clear startup/write-time error if no parquet engine is installed.
+
 ## Setup
 
 ```bash

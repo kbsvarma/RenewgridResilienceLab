@@ -13,9 +13,9 @@ from renewgrid.config import REGION_PRESETS, load_environment
 from renewgrid.data.eia import fetch_rto_daily, fetch_rto_hourly
 from renewgrid.data.nasa_power import fetch_daily_solar, fetch_daily_weather
 from renewgrid.data.rare_pudl import load_rare_daily_generation
-from renewgrid.util.parquet import require_parquet_engine
 from renewgrid.util.schema import validate_daily_frame
 from renewgrid.util.units import assert_daily_mw_avg
+from renewgrid.utils.parquet import require_parquet_engine
 
 LOGGER = logging.getLogger(__name__)
 

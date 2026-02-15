@@ -9,7 +9,7 @@ import pytest
 
 from renewgrid.data import merge
 from renewgrid.data.eia import aggregate_hourly_to_daily, fetch_rto_daily, fetch_rto_hourly
-from renewgrid.util.parquet import has_parquet_engine
+from renewgrid.utils.parquet import has_parquet_engine
 
 
 def test_hello_pipeline_writes_expected_schema(

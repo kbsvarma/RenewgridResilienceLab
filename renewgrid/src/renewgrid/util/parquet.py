@@ -1,21 +1,10 @@
-"""Parquet engine availability checks."""
+"""Backward-compatible parquet helpers.
+
+Use ``renewgrid.utils.parquet`` as the canonical import path.
+"""
 
 from __future__ import annotations
 
+from renewgrid.utils.parquet import has_parquet_engine, require_parquet_engine
 
-def has_parquet_engine() -> bool:
-    """Return True when pyarrow is importable."""
-    try:
-        import pyarrow  # noqa: F401
-    except ImportError:
-        return False
-    return True
-
-
-def require_parquet_engine() -> None:
-    """Raise a clear error when parquet support is unavailable."""
-    if not has_parquet_engine():
-        raise RuntimeError(
-            "Parquet output requires pyarrow. Run `uv sync --extra dev` or "
-            '`pip install -e ".[dev]"` and try again.'
-        )
+__all__ = ["has_parquet_engine", "require_parquet_engine"]
