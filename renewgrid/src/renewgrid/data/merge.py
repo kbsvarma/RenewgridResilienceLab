@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import date
 from pathlib import Path
 from typing import Literal
@@ -13,10 +14,13 @@ from renewgrid.data.eia import fetch_rto_daily, fetch_rto_hourly
 from renewgrid.data.nasa_power import fetch_daily_solar, fetch_daily_weather
 from renewgrid.data.rare_pudl import load_rare_daily_generation
 from renewgrid.util.parquet import require_parquet_engine
+from renewgrid.util.units import assert_daily_mw_avg
+
+LOGGER = logging.getLogger(__name__)
 
 
 def run_hello_pipeline(base_dir: str | Path) -> dict[str, Path]:
-    """Run tiny NASA+EIA ingest and save parquet outputs under data/processed."""
+    """Run tiny NASA+EIA ingest and save daily parquet outputs under data/processed."""
     require_parquet_engine()
 
     output_dir = Path(base_dir) / "data" / "processed"
@@ -27,12 +31,17 @@ def run_hello_pipeline(base_dir: str | Path) -> dict[str, Path]:
     end = date(2024, 1, 1)
 
     nasa = fetch_daily_solar(preset.latitude, preset.longitude, start, end)
-    eia = fetch_rto_hourly(preset.eia_respondent, start, end)
+    eia_hourly = fetch_rto_hourly(preset.eia_respondent, start, end)
+    eia = fetch_rto_daily("ERCOT", start, end, method="mean")
 
     nasa_path = output_dir / "nasa_power_daily.parquet"
-    eia_path = output_dir / "eia_rto_hourly.parquet"
+    eia_path = output_dir / "eia_rto_daily.parquet"
     nasa.to_parquet(nasa_path, index=False)
     eia.to_parquet(eia_path, index=False)
+
+    raw_dir = Path(base_dir) / "data" / "raw"
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    eia_hourly.to_parquet(raw_dir / "eia_rto_hourly_debug.parquet", index=False)
 
     return {"nasa": nasa_path, "eia": eia_path}
 
@@ -61,9 +70,8 @@ def build_daily_dataset(
     lon = longitude if longitude is not None else preset.longitude
 
     weather = fetch_daily_weather(lat, lon, start_date, end_date)
-    demand = fetch_rto_daily(region, start_date, end_date, method="mean").rename(
-        columns={"value": "demand_mw_avg"}
-    )
+    demand = fetch_rto_daily(region, start_date, end_date, method="mean")
+    assert_daily_mw_avg(demand)
 
     dataset = demand.merge(
         weather[[c for c in weather.columns if c == "date" or c.startswith("weather_")]],
@@ -75,11 +83,17 @@ def build_daily_dataset(
     if rare_path is not None:
         rare = load_rare_daily_generation(region, start_date, end_date, rare_path)
         if rare is not None:
+            if {"solar_cf", "wind_cf"}.issubset(set(rare.columns)):
+                LOGGER.info("Merging RARE capacity-factor columns for %s", region)
+            elif {"solar_gen_mwh", "wind_gen_mwh"}.issubset(set(rare.columns)):
+                LOGGER.info("Merging RARE generation-energy columns for %s", region)
             dataset = dataset.merge(rare, on="date", how="left")
 
     output_dir = Path(base_dir) / "data" / "processed"
     output_dir.mkdir(parents=True, exist_ok=True)
-    out_path = output_dir / f"{region}_daily_{start_date.isoformat()}_{end_date.isoformat()}.parquet"
+    out_path = (
+        output_dir / f"{region}_daily_{start_date.isoformat()}_{end_date.isoformat()}.parquet"
+    )
     dataset.to_parquet(out_path, index=False)
     return dataset.reset_index(drop=True)
 

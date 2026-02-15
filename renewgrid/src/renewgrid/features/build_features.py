@@ -15,12 +15,17 @@ def add_time_features(frame: pd.DataFrame) -> pd.DataFrame:
 
 
 def build_feature_frame(frame: pd.DataFrame, target_col: str = "demand_mw_avg") -> pd.DataFrame:
-    """Build leakage-safe daily features with lags and rolling means."""
+    """Build leakage-safe daily features with lags and rolling means.
+
+    The daily timestep represents average power over the UTC day.
+    """
     data = add_time_features(frame).sort_values("date").reset_index(drop=True)
 
     series_targets = [target_col]
     if "solar_gen" in data.columns and "wind_gen" in data.columns:
         series_targets.extend(["solar_gen", "wind_gen"])
+    if "solar_gen_mwh" in data.columns and "wind_gen_mwh" in data.columns:
+        series_targets.extend(["solar_gen_mwh", "wind_gen_mwh"])
     if "solar_cf" in data.columns and "wind_cf" in data.columns:
         series_targets.extend(["solar_cf", "wind_cf"])
 

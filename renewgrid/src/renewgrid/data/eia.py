@@ -70,7 +70,7 @@ def aggregate_hourly_to_daily(
     value_col: str,
     method: str = "mean",
 ) -> pd.DataFrame:
-    """Aggregate hourly EIA values to UTC daily resolution.
+    """Aggregate hourly EIA 930 values to a derived UTC daily series.
 
     This function treats incoming timestamps as UTC and groups by UTC calendar day.
     The default method ``mean`` produces daily average MW values.
@@ -82,7 +82,15 @@ def aggregate_hourly_to_daily(
         return pd.DataFrame(columns=["date", value_col, "source", "region"])
 
     data = frame.copy()
-    data["date"] = pd.to_datetime(data["date"], utc=True).dt.floor("D").dt.tz_localize(None)
+    parsed = pd.to_datetime(data["date"], errors="coerce", utc=False)
+    if parsed.isna().any():
+        raise ValueError("EIA hourly data contains unparseable timestamps.")
+
+    if parsed.dt.tz is None:
+        parsed = parsed.dt.tz_localize("UTC")
+    else:
+        parsed = parsed.dt.tz_convert("UTC")
+    data["date"] = parsed.dt.floor("D").dt.tz_localize(None)
     grouped = data.groupby("date", as_index=False)[value_col]
     daily = grouped.sum() if method == "sum" else grouped.mean()
     daily["source"] = "eia"
@@ -97,7 +105,7 @@ def fetch_rto_daily(
     api_key: str | None = None,
     method: str = "mean",
 ) -> pd.DataFrame:
-    """Fetch EIA demand and aggregate to UTC daily values.
+    """Fetch EIA hourly BA data and return derived UTC daily demand.
 
     Region must be ``CAISO`` or ``ERCOT``.
     """
@@ -108,4 +116,7 @@ def fetch_rto_daily(
         end_date=end_date,
         api_key=api_key,
     )
-    return aggregate_hourly_to_daily(hourly, value_col="value", method=method)
+    daily = aggregate_hourly_to_daily(hourly, value_col="value", method=method)
+    return daily.rename(columns={"value": "demand_mw_avg"})[
+        ["date", "demand_mw_avg", "source", "region"]
+    ]

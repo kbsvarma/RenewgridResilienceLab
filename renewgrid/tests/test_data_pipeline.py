@@ -4,21 +4,22 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pandas as pd
 import pytest
 
-import pandas as pd
-
-from renewgrid.data.eia import aggregate_hourly_to_daily, fetch_rto_hourly
 from renewgrid.data import merge
+from renewgrid.data.eia import aggregate_hourly_to_daily, fetch_rto_daily, fetch_rto_hourly
 from renewgrid.util.parquet import has_parquet_engine
 
 
-def test_hello_pipeline_writes_expected_schema(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_hello_pipeline_writes_expected_schema(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
     """Pipeline writes parquet files with expected minimal schema."""
     if not has_parquet_engine():
         pytest.fail(
-            "Parquet engine missing. Run `uv sync --extra dev` OR "
-            '`pip install -e ".[dev]"`.'
+            "Parquet engine missing. Run `uv sync --extra dev` OR " '`pip install -e ".[dev]"`.'
         )
 
     def fake_nasa(*args: object, **kwargs: object) -> pd.DataFrame:
@@ -33,7 +34,7 @@ def test_hello_pipeline_writes_expected_schema(monkeypatch: pytest.MonkeyPatch, 
             }
         )
 
-    def fake_eia(*args: object, **kwargs: object) -> pd.DataFrame:
+    def fake_eia_hourly(*args: object, **kwargs: object) -> pd.DataFrame:
         _ = (args, kwargs)
         return pd.DataFrame(
             {
@@ -44,8 +45,20 @@ def test_hello_pipeline_writes_expected_schema(monkeypatch: pytest.MonkeyPatch, 
             }
         )
 
+    def fake_eia_daily(*args: object, **kwargs: object) -> pd.DataFrame:
+        _ = (args, kwargs)
+        return pd.DataFrame(
+            {
+                "date": pd.to_datetime(["2024-01-01"]),
+                "demand_mw_avg": [50000.0],
+                "source": ["eia"],
+                "region": ["ERCO"],
+            }
+        )
+
     monkeypatch.setattr(merge, "fetch_daily_solar", fake_nasa)
-    monkeypatch.setattr(merge, "fetch_rto_hourly", fake_eia)
+    monkeypatch.setattr(merge, "fetch_rto_hourly", fake_eia_hourly)
+    monkeypatch.setattr(merge, "fetch_rto_daily", fake_eia_daily)
 
     paths = merge.run_hello_pipeline(tmp_path)
 
@@ -53,7 +66,7 @@ def test_hello_pipeline_writes_expected_schema(monkeypatch: pytest.MonkeyPatch, 
     eia = pd.read_parquet(paths["eia"])
 
     assert list(nasa.columns) == ["date", "value", "source", "latitude", "longitude"]
-    assert list(eia.columns) == ["date", "value", "source", "region"]
+    assert list(eia.columns) == ["date", "demand_mw_avg", "source", "region"]
     assert nasa.shape[0] == 1
     assert eia.shape[0] == 1
 
@@ -86,6 +99,30 @@ def test_aggregate_hourly_to_daily_mean() -> None:
     assert daily["date"].tolist() == [pd.Timestamp("2024-01-01"), pd.Timestamp("2024-01-02")]
 
 
+def test_fetch_rto_daily_renames_to_demand_mw_avg(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Daily EIA fetch should expose demand using canonical demand_mw_avg name."""
+
+    def fake_hourly(*args: object, **kwargs: object) -> pd.DataFrame:
+        _ = (args, kwargs)
+        return pd.DataFrame(
+            {
+                "date": pd.to_datetime(["2024-01-01T00:00:00Z", "2024-01-01T12:00:00Z"]),
+                "value": [100.0, 140.0],
+                "source": ["eia", "eia"],
+                "region": ["ERCO", "ERCO"],
+            }
+        )
+
+    monkeypatch.setattr("renewgrid.data.eia.fetch_rto_hourly", fake_hourly)
+    daily = fetch_rto_daily(
+        "ERCOT",
+        pd.Timestamp("2024-01-01").date(),
+        pd.Timestamp("2024-01-01").date(),
+    )
+    assert list(daily.columns) == ["date", "demand_mw_avg", "source", "region"]
+    assert daily["demand_mw_avg"].iloc[0] == 120.0
+
+
 def test_build_daily_dataset_schema(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Daily dataset should contain demand and weather features at minimum."""
 
@@ -105,7 +142,7 @@ def test_build_daily_dataset_schema(monkeypatch: pytest.MonkeyPatch, tmp_path: P
         return pd.DataFrame(
             {
                 "date": pd.to_datetime(["2024-01-01", "2024-01-02"]),
-                "value": [44000.0, 45000.0],
+                "demand_mw_avg": [44000.0, 45000.0],
                 "source": ["eia", "eia"],
                 "region": ["CISO", "CISO"],
             }
