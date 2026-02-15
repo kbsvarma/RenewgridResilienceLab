@@ -11,9 +11,11 @@ import streamlit as st
 
 from renewgrid.app.components.health import render_health_checklist
 from renewgrid.app.components.transparency import render_transparency_box
+from renewgrid.app.pages.compare_runs import render_compare_runs
 from renewgrid.app.pages.data_explorer import render_data_explorer
 from renewgrid.app.pages.forecast_lab import render_forecast_lab
 from renewgrid.app.pages.monitor_map import render_monitor_map
+from renewgrid.app.snapshots import save_snapshot
 from renewgrid.app.state import RunConfig
 from renewgrid.config import load_environment
 from renewgrid.data.merge import build_daily_dataset
@@ -151,14 +153,21 @@ def _render_guided(base_dir: Path) -> None:
     )
     st.caption(f"Selected analysis question: {question}")
 
-    flags = {
+    default_flags = {
         "dataset_loaded": False,
         "schema_valid": False,
         "units_valid": False,
         "eval_ran": False,
         "snapshot_saved": False,
     }
-    messages = {k: "pending" for k in flags}
+    default_messages = {k: "pending" for k in default_flags}
+    if "health_flags" not in st.session_state:
+        st.session_state["health_flags"] = default_flags.copy()
+    if "health_messages" not in st.session_state:
+        st.session_state["health_messages"] = default_messages.copy()
+
+    flags = st.session_state["health_flags"]
+    messages = st.session_state["health_messages"]
 
     if st.button("Run", type="primary"):
         config = RunConfig(
@@ -211,6 +220,8 @@ def _render_guided(base_dir: Path) -> None:
         st.session_state["run_config"] = config
         st.session_state["dataset"] = dataset
         st.session_state["evaluation"] = evaluation
+        st.session_state["health_flags"] = flags
+        st.session_state["health_messages"] = messages
 
     if "run_config" in st.session_state and "dataset" in st.session_state:
         config = st.session_state["run_config"]
@@ -236,6 +247,39 @@ def _render_guided(base_dir: Path) -> None:
             )
         }
         render_transparency_box(config, dataset_info)
+
+        if st.button("Save snapshot"):
+            summary_rows = len(dataset)
+            summary_dates = {
+                "rows": summary_rows,
+                "start_date": str(dataset["date"].min()),
+                "end_date": str(dataset["date"].max()),
+                "region": config.region,
+            }
+            key_cols = [
+                c
+                for c in [
+                    "date",
+                    "demand_mw_avg",
+                    "weather_t2m",
+                    "weather_ws10m",
+                    "weather_allsky_sfc_sw_dwn",
+                    "solar_cf",
+                    "wind_cf",
+                ]
+                if c in dataset.columns
+            ]
+            key_series = dataset[key_cols].copy() if key_cols else None
+            run_id = save_snapshot(
+                run_config=config,
+                dataset_summary=summary_dates,
+                eval_results=evaluation if isinstance(evaluation, dict) else {},
+                base_dir=base_dir,
+                key_series=key_series,
+            )
+            flags["snapshot_saved"] = True
+            messages["snapshot_saved"] = f"Snapshot written: {run_id}"
+            st.success(f"Snapshot saved under reports/runs/{run_id}")
 
         st.markdown("### Downloads")
         st.download_button(
@@ -264,6 +308,8 @@ def _render_guided(base_dir: Path) -> None:
                 mime="application/json",
             )
 
+    st.session_state["health_flags"] = flags
+    st.session_state["health_messages"] = messages
     render_health_checklist(flags, messages)
 
 
@@ -277,6 +323,47 @@ def main() -> None:
     load_environment(base_dir / ".env")
 
     mode = st.toggle("Guided Run (recommended)", value=True)
+
+    with st.sidebar:
+        st.markdown("### Trust & Transparency")
+        config = st.session_state.get("run_config")
+        dataset = st.session_state.get("dataset")
+        if config is not None and isinstance(dataset, pd.DataFrame):
+            dataset_info = {
+                "rare_loaded": (
+                    "yes"
+                    if any(
+                        c in dataset.columns
+                        for c in ["solar_cf", "wind_cf", "solar_gen_mwh", "wind_gen_mwh"]
+                    )
+                    else "no"
+                )
+            }
+            render_transparency_box(config, dataset_info)
+        else:
+            st.caption("Run Guided flow to populate provenance and unit details.")
+        render_health_checklist(
+            st.session_state.get(
+                "health_flags",
+                {
+                    "dataset_loaded": False,
+                    "schema_valid": False,
+                    "units_valid": False,
+                    "eval_ran": False,
+                    "snapshot_saved": False,
+                },
+            ),
+            st.session_state.get(
+                "health_messages",
+                {
+                    "dataset_loaded": "pending",
+                    "schema_valid": "pending",
+                    "units_valid": "pending",
+                    "eval_ran": "pending",
+                    "snapshot_saved": "pending",
+                },
+            ),
+        )
 
     if mode:
         _render_guided(base_dir)
@@ -298,7 +385,7 @@ def main() -> None:
         with tabs[3]:
             render_forecast_lab(st.session_state.get("dataset"))
         with tabs[4]:
-            st.info("Compare Runs will be loaded from snapshots module.")
+            render_compare_runs(str(base_dir))
         with tabs[5]:
             st.warning("Phase 2 scenarios are preview-only in Phase 1 UI.")
 
