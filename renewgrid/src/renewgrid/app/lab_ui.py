@@ -11,6 +11,7 @@ import streamlit as st
 
 from renewgrid.app.components.health import render_health_checklist
 from renewgrid.app.components.transparency import render_transparency_box
+from renewgrid.app.pages.monitor_map import render_monitor_map
 from renewgrid.app.state import RunConfig
 from renewgrid.config import load_environment
 from renewgrid.data.merge import build_daily_dataset
@@ -289,7 +290,7 @@ def main() -> None:
         with tabs[0]:
             _render_guided(base_dir)
         with tabs[1]:
-            st.info("Monitor Map will be loaded from pages module.")
+            render_monitor_map(base_dir)
         with tabs[2]:
             st.info("Data Explorer will be loaded from pages module.")
         with tabs[3]:

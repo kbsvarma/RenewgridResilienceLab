@@ -1,0 +1,33 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {"region": "CAISO", "lat": 36.7783, "lon": -119.4179},
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-124.5, 32.0],
+          [-114.0, 32.0],
+          [-114.0, 42.2],
+          [-124.5, 42.2],
+          [-124.5, 32.0]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {"region": "ERCOT", "lat": 31.9686, "lon": -99.9018},
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-106.7, 25.8],
+          [-93.5, 25.8],
+          [-93.5, 36.6],
+          [-106.7, 36.6],
+          [-106.7, 25.8]
+        ]]
+      }
+    }
+  ]
+}
