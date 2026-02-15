@@ -10,10 +10,13 @@ import pandas as pd
 from renewgrid.config import REGION_PRESETS, load_environment
 from renewgrid.data.eia import fetch_rto_hourly
 from renewgrid.data.nasa_power import fetch_daily_solar
+from renewgrid.util.parquet import require_parquet_engine
 
 
 def run_hello_pipeline(base_dir: str | Path) -> dict[str, Path]:
     """Run tiny NASA+EIA ingest and save parquet outputs under data/processed."""
+    require_parquet_engine()
+
     output_dir = Path(base_dir) / "data" / "processed"
     output_dir.mkdir(parents=True, exist_ok=True)
 

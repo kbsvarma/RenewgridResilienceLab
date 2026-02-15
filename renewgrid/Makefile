@@ -29,7 +29,7 @@ run:
 	$(RUN_STREAMLIT) run src/renewgrid/app/streamlit_app.py
 
 preflight-pyarrow:
-	@$(RUN_PYTHON) -c "import importlib.util, sys; ok = importlib.util.find_spec('pyarrow') is not None; print(f'pyarrow_available={ok}'); sys.exit(0 if ok else 1)"
+	@PYTHONPATH=src $(RUN_PYTHON) -c "import sys; from renewgrid.util.parquet import has_parquet_engine; ok = has_parquet_engine(); print(f'pyarrow_available={ok}'); sys.exit(0 if ok else 1)"
 
 pipeline: preflight-pyarrow
 	PYTHONPATH=src $(RUN_PYTHON) -m renewgrid.data.merge
