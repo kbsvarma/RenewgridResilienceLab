@@ -15,6 +15,16 @@ from renewgrid.app.state import RunConfig
 def _serialize_eval(eval_results: dict[str, object]) -> dict[str, object]:
     summary = eval_results.get("summary")
     predictions = eval_results.get("predictions")
+    if isinstance(summary, pd.DataFrame):
+        summary = summary.copy()
+        for col in summary.columns:
+            if pd.api.types.is_datetime64_any_dtype(summary[col]):
+                summary[col] = summary[col].dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+    if isinstance(predictions, pd.DataFrame):
+        predictions = predictions.copy()
+        for col in predictions.columns:
+            if pd.api.types.is_datetime64_any_dtype(predictions[col]):
+                predictions[col] = predictions[col].dt.strftime("%Y-%m-%dT%H:%M:%SZ")
     return {
         "availability": eval_results.get("availability", {}),
         "summary": summary.to_dict(orient="records") if isinstance(summary, pd.DataFrame) else [],

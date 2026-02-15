@@ -43,7 +43,7 @@ def test_save_snapshot_writes_expected_files(tmp_path: Path) -> None:
                 {
                     "model": "persistence",
                     "horizon": 1,
-                    "date": "2024-01-20",
+                    "date": pd.Timestamp("2024-01-20"),
                     "y_true": 10.0,
                     "y_pred": 9.5,
                 }
