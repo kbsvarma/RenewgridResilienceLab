@@ -15,9 +15,11 @@ Alternate setup without `uv`:
 
 ```bash
 cd renewgrid
-pip install -e .[dev]
+pip install -e ".[dev]"
 cp .env.example .env
 ```
+
+Parquet output requires pyarrow; if you see to_parquet engine errors, your install is incomplete.
 
 If `uv` is not installed, the `Makefile` falls back to system `python` and CLI tools. `make pipeline` runs a preflight check and prints whether `pyarrow` is available.
 
