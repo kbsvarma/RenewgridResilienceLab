@@ -3,7 +3,7 @@
   "features": [
     {
       "type": "Feature",
-      "properties": {"region": "CAISO", "lat": 36.7783, "lon": -119.4179},
+      "properties": {"name": "CAISO", "region": "CAISO", "lat": 36.7783, "lon": -119.4179},
       "geometry": {
         "type": "Polygon",
         "coordinates": [[
@@ -17,7 +17,7 @@
     },
     {
       "type": "Feature",
-      "properties": {"region": "ERCOT", "lat": 31.9686, "lon": -99.9018},
+      "properties": {"name": "ERCOT", "region": "ERCOT", "lat": 31.9686, "lon": -99.9018},
       "geometry": {
         "type": "Polygon",
         "coordinates": [[

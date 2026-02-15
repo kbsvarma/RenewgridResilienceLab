@@ -10,6 +10,7 @@ import pandas as pd
 import streamlit as st
 
 from renewgrid.app.components.health import render_health_checklist
+from renewgrid.app.components.monitor_map import render_monitor_map as render_monitor_map_component
 from renewgrid.app.components.transparency import render_transparency_box
 from renewgrid.app.pages.compare_runs import render_compare_runs
 from renewgrid.app.pages.data_explorer import render_data_explorer
@@ -243,6 +244,7 @@ def _render_guided(base_dir: Path) -> None:
         st.session_state["run_config"] = config
         st.session_state["dataset"] = dataset
         st.session_state["evaluation"] = evaluation
+        st.session_state["region"] = config.region
         st.session_state["health_flags"] = flags
         st.session_state["health_messages"] = messages
 
@@ -258,6 +260,12 @@ def _render_guided(base_dir: Path) -> None:
             _render_answer_cards(dataset, None)
 
         _render_story_chart(dataset)
+        with st.expander("Map preview", expanded=False):
+            render_monitor_map_component(
+                base_dir=base_dir,
+                dataset_by_region={config.region: dataset},
+                key_prefix="guided_preview",
+            )
 
         dataset_info = {
             "rare_loaded": (
