@@ -33,6 +33,25 @@ If `uv` is not installed, the `Makefile` falls back to system `python` and CLI t
 - `make preview`: print first 5 rows from hello-pipeline parquet outputs.
 - `make phase1`: build CAISO/ERCOT daily datasets and write evaluation reports.
 
+## UI Quickstart
+
+```bash
+cd renewgrid
+uv sync --extra dev
+cp .env.example .env
+make run
+```
+
+What the UI includes in Phase 1:
+- **Guided Run (default)**: pick region, question, timeframe, then run daily data + forecast evaluation.
+- **Monitor Map**: latest available CAISO/ERCOT daily context (cached window, not real-time operations).
+- **Data Explorer / Forecast Lab**: validation, diagnostics, and model comparison for Phase 1.
+- **Compare Runs**: saved snapshot notebook view for run-to-run metric and chart diffs.
+
+Snapshot location:
+- `reports/runs/<run_id>/`
+- files include `run_config.json`, `dataset_summary.json`, `eval_results.json`, `manifest.json`, and optional `key_series.parquet`.
+
 ## Phase 0 Quickstart
 
 ```bash
@@ -127,6 +146,7 @@ Normalization behavior:
 - This repository is a **research stress-test tool**, not an operational forecasting platform.
 - Daily series are derived from external APIs and subject to source latency/revisions.
 - Phase 1 reports are for comparative model benchmarking, not real-time dispatch operations.
+- UI scope is **Phase 1 only** (data + forecasting evaluation). Phase 2/3 optimization and resilience math are not implemented here.
 - Reproducibility scope: deterministic daily aggregation/feature logic with network-free tests; upstream API data can still change over time.
 - Data-source policy: no scraping and no paywalled sources in the core pipeline.
 
