@@ -22,7 +22,8 @@ def test_persistence_forecast_returns_shifted_series() -> None:
     """Persistence forecast should return prior-value predictions."""
     frame = pd.DataFrame({"value": [10.0, 12.0, 14.0]})
     pred = persistence_forecast(frame)
-    assert pred.tolist() == [10.0, 10.0, 12.0]
+    assert pd.isna(pred.iloc[0])
+    assert pred.iloc[1:].tolist() == [10.0, 12.0]
 
 
 def test_mean_absolute_error() -> None:
@@ -83,10 +84,54 @@ def test_evaluate_runs_end_to_end(tmp_path: Path) -> None:
     summary = evaluation["summary"]
     assert isinstance(summary, pd.DataFrame)
     assert "persistence" in set(summary["model"].tolist())
+    assert "skill_vs_persistence" in summary.columns
+    assert pd.api.types.is_numeric_dtype(summary["skill_vs_persistence"])
 
     paths = save_evaluation_report(evaluation, "ERCOT", "demand_mw_avg", tmp_path / "reports")
     assert paths["json"].exists()
     assert paths["markdown"].exists()
+
+
+def test_bounded_evaluation_caps_splits_and_models(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Bounded evaluation should cap split count and keep model summary fields stable."""
+    frame = pd.DataFrame(
+        {
+            "date": pd.date_range("2024-01-01", periods=120, freq="D"),
+            "demand_mw_avg": np.linspace(100.0, 220.0, 120),
+            "dow": [d.dayofweek for d in pd.date_range("2024-01-01", periods=120, freq="D")],
+            "month": [d.month for d in pd.date_range("2024-01-01", periods=120, freq="D")],
+            "demand_mw_avg_lag_1": pd.Series(np.linspace(100.0, 220.0, 120)).shift(1),
+        }
+    )
+    feature_cols = ["dow", "month", "demand_mw_avg_lag_1"]
+
+    monkeypatch.setattr("renewgrid.forecast.evaluate.xgboost_is_available", lambda: True)
+    monkeypatch.setattr("renewgrid.forecast.evaluate.fit_xgb", lambda x, y: {"mean": float(y.mean())})
+    monkeypatch.setattr(
+        "renewgrid.forecast.evaluate.predict_xgb",
+        lambda model, x: pd.Series([model["mean"]] * len(x), index=x.index, dtype=float),
+    )
+
+    horizons = (1, 2, 3)
+    max_splits = 12
+    evaluation = rolling_origin_evaluate(
+        frame=frame,
+        target_col="demand_mw_avg",
+        feature_cols=feature_cols,
+        horizons=horizons,
+        min_train_size=20,
+        max_splits=max_splits,
+        backtest_window_days=90,
+        refit_every=7,
+        models=("persistence", "xgboost"),
+    )
+
+    preds = evaluation["predictions"]
+    summary = evaluation["summary"]
+    assert len(preds) <= max_splits * len(horizons) * 2
+    assert {"persistence", "xgboost"}.issubset(set(summary["model"].tolist()))
+    assert "skill_vs_persistence" in summary.columns
+    assert pd.api.types.is_numeric_dtype(summary["skill_vs_persistence"])
 
 
 def test_phase1_runs_optional_targets_when_available(

@@ -52,12 +52,12 @@ def test_generate_findings_reports_weak_correlation() -> None:
 
 
 def test_generate_findings_reports_insufficient_overlap_for_correlation() -> None:
-    """Correlation message should indicate insufficient data with fewer than 10 aligned rows."""
+    """Correlation message should indicate insufficient data with fewer than 5 aligned rows."""
     frame = pd.DataFrame(
         {
-            "date": pd.date_range("2026-03-01", periods=8, freq="D"),
-            "demand_mw_avg": [21000, 21200, 21400, 21600, 21800, 22000, 22200, 22400],
-            "weather_t2m": [10.0, 10.5, 11.0, 11.5, 12.0, 12.5, 13.0, 13.5],
+            "date": pd.date_range("2026-03-01", periods=4, freq="D"),
+            "demand_mw_avg": [21000, 21200, 21400, 21600],
+            "weather_t2m": [10.0, 10.5, 11.0, 11.5],
         }
     )
     bullets = generate_findings(
@@ -65,7 +65,7 @@ def test_generate_findings_reports_insufficient_overlap_for_correlation() -> Non
         selected_series=["Demand (MW avg)", "Temperature (T2M)"],
         region="CAISO",
         start_date="2026-03-01",
-        end_date="2026-03-08",
+        end_date="2026-03-04",
     )
     joined = " ".join(bullets).lower()
-    assert "correlation not available" in joined
+    assert "not enough overlapping data" in joined
