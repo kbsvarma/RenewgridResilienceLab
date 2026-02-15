@@ -24,3 +24,7 @@ def render_transparency_box(config: RunConfig, dataset_info: dict[str, str]) -> 
             "**Reproducibility**: deterministic daily aggregation + cached app execution; "
             "no paywalls and no scraping in the core pipeline."
         )
+        st.markdown(
+            "**Data quality**: NASA POWER sentinels (`-999` and values `<= -900`) are "
+            "converted to missing values; summary stats are computed on non-missing rows."
+        )

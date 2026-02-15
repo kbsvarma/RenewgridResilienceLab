@@ -44,9 +44,17 @@ make run
 
 What the UI includes in Phase 1:
 - **Guided Run (default)**: pick region, question, timeframe, then run daily data + forecast evaluation.
-- **Monitor Map**: latest available CAISO/ERCOT daily context (cached window, not real-time operations).
+- **Monitor Map**: latest available CAISO/ERCOT daily context (cached window, not real-time operations), with overlays for demand, temperature, wind, and solar proxy.
 - **Data Explorer / Forecast Lab**: validation, diagnostics, and model comparison for Phase 1.
 - **Compare Runs**: saved snapshot notebook view for run-to-run metric and chart diffs.
+
+Story chart scale modes:
+- `Dual axis`: demand on left axis and one weather variable on right axis.
+- `Normalized (0-100)`: min-max normalized for readability when comparing multiple series.
+- `Single series`: one variable with native units.
+
+Data quality handling:
+- NASA POWER sentinel values (`-999` and values `<= -900`) are converted to missing values before summary cards and plots.
 
 Snapshot location:
 - `reports/runs/<run_id>/`
