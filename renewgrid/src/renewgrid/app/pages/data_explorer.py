@@ -31,7 +31,8 @@ def render_data_explorer(dataset: pd.DataFrame | None) -> None:
 
     st.markdown("### Missingness")
     missing = dataset.isna().mean().mul(100).round(2).rename("missing_pct")
-    st.dataframe(missing.reset_index(names="column"), use_container_width=True)
+    missing_df = missing.rename_axis("column").reset_index(name="missing_pct")
+    st.dataframe(missing_df, use_container_width=True)
 
     st.markdown("### Summary Stats")
     st.dataframe(dataset.describe(include="all").T, use_container_width=True)

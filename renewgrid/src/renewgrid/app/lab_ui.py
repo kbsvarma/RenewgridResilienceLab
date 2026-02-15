@@ -17,6 +17,7 @@ from renewgrid.app.pages.compare_runs import render_compare_runs
 from renewgrid.app.pages.data_explorer import render_data_explorer
 from renewgrid.app.pages.forecast_lab import render_forecast_lab
 from renewgrid.app.pages.monitor_map import render_monitor_map
+from renewgrid.app.pages.stress_test import render_stress_test
 from renewgrid.app.snapshots import save_snapshot
 from renewgrid.app.state import RunConfig
 from renewgrid.config import load_environment
@@ -364,7 +365,7 @@ def main() -> None:
     """Streamlit entrypoint for Resilience Lab dashboard."""
     st.set_page_config(page_title="RenewGrid Resilience Lab", layout="wide")
     st.title("RenewGrid Resilience Lab")
-    st.caption("Phase 1 only: public-data daily monitoring and forecast evaluation")
+    st.caption("Phase 1 monitoring + Phase 2 deterministic stress testing")
 
     base_dir = Path(__file__).resolve().parents[3]
     load_environment(base_dir / ".env")
@@ -420,8 +421,8 @@ def main() -> None:
             "Monitor Map",
             "Data Explorer",
             "Forecast Lab",
+            "Stress Test",
             "Compare Runs",
-            "Scenarios (Phase 2 preview)",
         ])
         with tabs[0]:
             _render_guided(base_dir)
@@ -432,9 +433,9 @@ def main() -> None:
         with tabs[3]:
             render_forecast_lab(st.session_state.get("dataset"))
         with tabs[4]:
-            render_compare_runs(str(base_dir))
+            render_stress_test(base_dir)
         with tabs[5]:
-            st.warning("Phase 2 scenarios are preview-only in Phase 1 UI.")
+            render_compare_runs(str(base_dir))
 
 
 if __name__ == "__main__":
