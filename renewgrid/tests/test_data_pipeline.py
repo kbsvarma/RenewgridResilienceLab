@@ -8,7 +8,7 @@ import pytest
 
 import pandas as pd
 
-from renewgrid.data.eia import fetch_rto_daily
+from renewgrid.data.eia import fetch_rto_hourly
 from renewgrid.data import merge
 
 
@@ -39,7 +39,7 @@ def test_hello_pipeline_writes_expected_schema(monkeypatch: pytest.MonkeyPatch, 
         )
 
     monkeypatch.setattr(merge, "fetch_daily_solar", fake_nasa)
-    monkeypatch.setattr(merge, "fetch_rto_daily", fake_eia)
+    monkeypatch.setattr(merge, "fetch_rto_hourly", fake_eia)
 
     paths = merge.run_hello_pipeline(tmp_path)
 
@@ -56,7 +56,7 @@ def test_eia_fetch_requires_key(monkeypatch: pytest.MonkeyPatch) -> None:
     """EIA fetch should fail fast when no API key is configured."""
     monkeypatch.delenv("EIA_KEY", raising=False)
     with pytest.raises(ValueError, match="EIA_KEY is not set"):
-        fetch_rto_daily(
+        fetch_rto_hourly(
             "ERCO",
             pd.Timestamp("2024-01-01").date(),
             pd.Timestamp("2024-01-01").date(),

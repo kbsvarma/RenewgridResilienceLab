@@ -15,7 +15,7 @@ def main() -> None:
 
     base_dir = Path(__file__).resolve().parents[3]
     nasa_path = base_dir / "data" / "processed" / "nasa_power_daily.parquet"
-    eia_path = base_dir / "data" / "processed" / "eia_rto_daily.parquet"
+    eia_path = base_dir / "data" / "processed" / "eia_rto_hourly.parquet"
 
     if nasa_path.exists():
         st.subheader("NASA POWER")

@@ -11,7 +11,7 @@ import requests
 EIA_RTO_REGION_DATA_URL = "https://api.eia.gov/v2/electricity/rto/region-data/data/"
 
 
-def fetch_rto_daily(
+def fetch_rto_hourly(
     respondent: str,
     start_date: date,
     end_date: date,

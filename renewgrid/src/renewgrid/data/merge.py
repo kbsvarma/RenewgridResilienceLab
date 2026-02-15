@@ -8,7 +8,7 @@ from pathlib import Path
 import pandas as pd
 
 from renewgrid.config import REGION_PRESETS, load_environment
-from renewgrid.data.eia import fetch_rto_daily
+from renewgrid.data.eia import fetch_rto_hourly
 from renewgrid.data.nasa_power import fetch_daily_solar
 
 
@@ -22,10 +22,10 @@ def run_hello_pipeline(base_dir: str | Path) -> dict[str, Path]:
     end = date(2024, 1, 1)
 
     nasa = fetch_daily_solar(preset.latitude, preset.longitude, start, end)
-    eia = fetch_rto_daily(preset.eia_respondent, start, end)
+    eia = fetch_rto_hourly(preset.eia_respondent, start, end)
 
     nasa_path = output_dir / "nasa_power_daily.parquet"
-    eia_path = output_dir / "eia_rto_daily.parquet"
+    eia_path = output_dir / "eia_rto_hourly.parquet"
     nasa.to_parquet(nasa_path, index=False)
     eia.to_parquet(eia_path, index=False)
 
