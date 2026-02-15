@@ -17,7 +17,7 @@ from renewgrid.app.pages.compare_runs import render_compare_runs
 from renewgrid.app.pages.data_explorer import render_data_explorer
 from renewgrid.app.pages.forecast_lab import render_forecast_lab
 from renewgrid.app.pages.monitor_map import render_monitor_map
-from renewgrid.app.pages.stress_test import render_stress_test
+from renewgrid.app.pages.stress_page import render_stress_test
 from renewgrid.app.snapshots import save_snapshot
 from renewgrid.app.state import RunConfig
 from renewgrid.config import PHASE_3_ENABLED, load_environment
