@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from renewgrid.config import REGION_PRESETS
+from renewgrid.config import REGION_PRESETS, load_environment
 from renewgrid.data.eia import fetch_rto_daily
 from renewgrid.data.nasa_power import fetch_daily_solar
 
@@ -40,6 +40,7 @@ def merge_energy_weather(nasa_frame: pd.DataFrame, eia_frame: pd.DataFrame) -> p
 def main() -> None:
     """Run the hello pipeline from the project root."""
     base_dir = Path(__file__).resolve().parents[3]
+    load_environment(base_dir / ".env")
     outputs = run_hello_pipeline(base_dir)
     print(f"Wrote NASA data: {outputs['nasa']}")
     print(f"Wrote EIA data: {outputs['eia']}")

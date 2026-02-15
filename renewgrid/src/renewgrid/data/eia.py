@@ -19,7 +19,12 @@ def fetch_rto_daily(
     api_key: str | None = None,
 ) -> pd.DataFrame:
     """Fetch EIA RTO/BA region data at hourly frequency for a day-scale window."""
-    token = api_key or getenv("EIA_KEY")
+    token = (api_key or getenv("EIA_KEY") or "").strip()
+    if not token:
+        raise ValueError(
+            "EIA_KEY is not set. Add it to renewgrid/.env or export EIA_KEY in your shell."
+        )
+
     params = {
         "api_key": token,
         "frequency": "hourly",
@@ -35,7 +40,14 @@ def fetch_rto_daily(
     }
 
     response = requests.get(EIA_RTO_REGION_DATA_URL, params=params, timeout=30)
-    response.raise_for_status()
+    try:
+        response.raise_for_status()
+    except requests.HTTPError as exc:
+        if response.status_code == 403:
+            raise PermissionError(
+                "EIA API rejected the request (403). Check that EIA_KEY is valid and active."
+            ) from exc
+        raise
     payload = response.json()
     records = payload.get("response", {}).get("data", [])
 
