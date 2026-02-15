@@ -28,10 +28,24 @@ If `uv` is not installed, the `Makefile` falls back to system `python` and CLI t
 - `make test`: run pytest.
 - `make lint`: run ruff, black, isort checks.
 - `make run`: launch Streamlit app.
-- `make pipeline`: run the Phase 1 hello pipeline and write parquet outputs.
+- `make pipeline`: run the Phase 0 hello pipeline and write daily parquet outputs.
 - `make inspect`: print row counts and columns for hello-pipeline parquet outputs.
 - `make preview`: print first 5 rows from hello-pipeline parquet outputs.
 - `make phase1`: build CAISO/ERCOT daily datasets and write evaluation reports.
+
+## Phase 0 Quickstart
+
+```bash
+cd renewgrid
+uv sync --extra dev
+cp .env.example .env
+make pipeline
+make inspect
+```
+
+Phase 0 processed outputs are daily:
+- `data/processed/nasa_power_daily.parquet`
+- `data/processed/eia_rto_daily.parquet`
 
 ## Phase 1 Quickstart
 
@@ -70,9 +84,36 @@ Daily demand aggregation choice:
 - EIA hourly demand is aggregated to UTC-day **mean** value and exposed as `demand_mw_avg`.
 - This keeps units consistent as MW-average at daily resolution for Phase 1.
 
+## Units Contract
+
+- Canonical demand unit for Phase 1 and Phase 2 is **daily average power in MW**, stored as `demand_mw_avg`.
+- If daily energy is needed, derive it as: `demand_mwh = demand_mw_avg * 24`.
+- Daily aggregation and timestamps use **UTC day** boundaries.
+
+Conversion helpers live in `src/renewgrid/util/units.py`.
+
 Optional RARE validation file:
 - Provide `--rare-path /absolute/path/to/rare_daily.parquet` to merge optional daily solar/wind series.
-- Expected columns: `date`, `region`, and either (`solar_gen`, `wind_gen`) or (`solar_cf`, `wind_cf`).
+
+## RARE Optional Input Schema
+
+Expected base columns:
+- `date`
+- `region`
+
+Supported value variants:
+- preferred canonical: `solar_cf`, `wind_cf` (0..1)
+- alternatively: `solar_gen`, `wind_gen`, plus optional `solar_capacity`, `wind_capacity`
+
+Normalization behavior:
+- if capacities are present, capacity factors are computed and canonicalized to `solar_cf`/`wind_cf`
+- if capacities are missing, generation is retained as `solar_gen_mwh`/`wind_gen_mwh` with a warning
+
+## Data Freshness And Limitations
+
+- This repository is a **research stress-test tool**, not an operational forecasting platform.
+- Daily series are derived from external APIs and subject to source latency/revisions.
+- Phase 1 reports are for comparative model benchmarking, not real-time dispatch operations.
 
 ## Modules
 
